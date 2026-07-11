@@ -2319,9 +2319,6 @@ export default function NutritionAssessment() {
                     </Field>
                   )}
                 </div>
-                <button className="na-btn" onClick={addFood} disabled={!selected} style={{ opacity: selected ? 1 : 0.45 }}>
-                  Add to log
-                </button>
                 <button className="na-btn na-btn-quiet" onClick={() => { setShowScanner(s => !s); setScanStatus(""); }}>
                   {showScanner ? "Cancel scan" : "Scan barcode"}
                 </button>
@@ -2329,6 +2326,13 @@ export default function NutritionAssessment() {
                   {showCustom ? "Cancel custom item" : "Custom item"}
                 </button>
               </div>
+
+              {/* Primary action — sized and placed last to signal it records the entry */}
+              <button className="na-btn" onClick={addFood} disabled={!selected}
+                style={{ opacity: selected ? 1 : 0.45, display: "block", width: "100%", maxWidth: 400,
+                  marginTop: 12, padding: "14px 18px", fontSize: 15.5, fontWeight: 600 }}>
+                Add to log
+              </button>
 
               {showScanner && <BarcodeScanner onDetect={handleBarcode} onClose={() => setShowScanner(false)} />}
               {scanStatus && <p className="na-mono" style={{ marginTop: 12, marginBottom: 0, fontSize: 12.5, color: C.ok }}>{scanStatus}</p>}
