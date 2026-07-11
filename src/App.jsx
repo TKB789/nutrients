@@ -220,6 +220,11 @@ function fdcToFood(item) {
   }
   if (item.brandOwner) food.name += ` — ${item.brandOwner}`;
   if (item.ingredients) food.ingredients = String(item.ingredients);
+  if (typeof item.servingSize === "number" && item.servingSize > 0 &&
+      /^(g|grm|gram|ml|mlt)/i.test(String(item.servingSizeUnit || ""))) {
+    food.servingG = item.servingSize;
+    food.servingText = item.householdServingFullText || `${item.servingSize} ${item.servingSizeUnit}`;
+  }
   return food;
 }
 
@@ -252,6 +257,8 @@ function offToFood(p) {
     potassium: g("potassium") * 1000, sodium: g("sodium") * 1000,
     vitC: g("vitamin-c") * 1000, vitD: g("vitamin-d") * 1e6,
     ingredients: p.ingredients_text ? String(p.ingredients_text) : undefined,
+    servingG: Number(p.serving_quantity) > 0 ? Number(p.serving_quantity) : undefined,
+    servingText: p.serving_size ? String(p.serving_size) : undefined,
   };
 }
 
@@ -468,60 +475,6 @@ const RECIPES = [
 ];
 
 const SAMPLE_DAY = [RECIPES[6], RECIPES[4], RECIPES[0]]; // breakfast, lunch, dinner
-
-/* ------------------------------------------------------------------ */
-/*  Fitness assessment norms                                          */
-/*  Push-ups adapted from ACSM/CSEP normative tables (men: standard;  */
-/*  women: modified). Chair stand from CDC STEADI (ages 60+). Plank   */
-/*  and sit-and-reach categories are general guidance — no single     */
-/*  authoritative normative database exists for them.                 */
-/* ------------------------------------------------------------------ */
-
-const PUSHUP_NORMS = {
-  standard: { "20-29": [17, 22, 29, 36], "30-39": [12, 17, 22, 30], "40-49": [10, 13, 17, 25], "50-59": [7, 10, 13, 21], "60-69": [5, 8, 11, 18] },
-  modified: { "20-29": [10, 15, 21, 30], "30-39": [8, 13, 20, 27], "40-49": [5, 11, 15, 24], "50-59": [2, 7, 11, 21], "60-69": [2, 5, 12, 17] },
-};
-
-const CHAIR_STAND_MIN = { // CDC STEADI: "below average" if under this many stands in 30s
-  male: { "60-64": 14, "65-69": 12, "70-74": 12, "75-79": 11, "80-84": 10, "85-89": 8, "90-94": 7 },
-  female: { "60-64": 12, "65-69": 11, "70-74": 10, "75-79": 10, "80-84": 9, "85-89": 8, "90-94": 4 },
-};
-
-const RATING_NAMES = ["Needs improvement", "Fair", "Good", "Very good", "Excellent"];
-
-function ageBand(age, bands) {
-  for (const b of bands) {
-    const [lo, hi] = b.split("-").map(Number);
-    if (age >= lo && age <= hi) return b;
-  }
-  return null;
-}
-
-function ratePushups(age, style, reps) {
-  const table = PUSHUP_NORMS[style];
-  if (!table) return { rating: null, note: "Choose standard or modified to score against the reference table." };
-  const band = ageBand(age, Object.keys(table));
-  if (!band) return { rating: null, note: "Reference data covers ages 20–69." };
-  const [fair, good, vgood, exc] = table[band];
-  let i = 0;
-  if (reps >= exc) i = 4; else if (reps >= vgood) i = 3; else if (reps >= good) i = 2; else if (reps >= fair) i = 1;
-  return { rating: RATING_NAMES[i], band, thresholds: table[band] };
-}
-
-function ratePlank(sec) {
-  if (sec >= 120) return "Excellent";
-  if (sec >= 60) return "Good";
-  if (sec >= 30) return "Average";
-  if (sec >= 15) return "Below average";
-  return "Needs improvement";
-}
-
-const REACH_OPTIONS = [
-  { v: "knees", label: "Mid-shin or above", rating: "Needs improvement" },
-  { v: "ankles", label: "Ankles", rating: "Fair" },
-  { v: "toes", label: "Toes", rating: "Good" },
-  { v: "past", label: "Past toes / palms flat", rating: "Excellent" },
-];
 
 /* ------------------------------------------------------------------ */
 /*  History storage — persists via window.storage (Claude artifacts), */
@@ -857,6 +810,45 @@ function analyzeIngredients(text) {
 }
 
 const FLAG_COLOR = { avoid: C.high, caution: C.low, note: C.faint };
+
+
+function LabelInfo({ food }) {
+  const rows = [
+    ["Energy", Math.round(food.kcal), "kcal"], ["Protein", food.protein.toFixed(1), "g"],
+    ["Carbohydrate", food.carb.toFixed(1), "g"], ["Fat", food.fat.toFixed(1), "g"],
+    ["Fiber", food.fiber.toFixed(1), "g"], ["Sodium", Math.round(food.sodium), "mg"],
+    ["Calcium", Math.round(food.calcium), "mg"], ["Iron", food.iron.toFixed(1), "mg"],
+    ["Potassium", Math.round(food.potassium), "mg"], ["Vitamin C", Math.round(food.vitC), "mg"],
+    ["Vitamin D", food.vitD.toFixed(1), "mcg"],
+  ];
+  return (
+    <div style={{ marginTop: 12, padding: "12px 14px", background: C.paper, border: `1px solid ${C.rule}`, borderRadius: 10 }}>
+      <div className="na-eyebrow" style={{ marginBottom: 6 }}>
+        Label info — verify against your package{food.servingText ? ` (serving: ${food.servingText})` : ""}
+      </div>
+      <div className="na-mono" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(128px, 1fr))", gap: "4px 12px", fontSize: 12 }}>
+        {rows.map(([n, v, u]) => (
+          <div key={n} style={{ display: "flex", justifyContent: "space-between", borderBottom: `1px solid ${C.rule}`, padding: "3px 0" }}>
+            <span style={{ color: C.faint }}>{n}</span><span>{v} {u}</span>
+          </div>
+        ))}
+      </div>
+      <p style={{ margin: "6px 0 0", fontSize: 10.5, color: C.faint }}>Values per 100 g.</p>
+      {food.ingredients && (
+        <>
+          <div className="na-eyebrow" style={{ margin: "10px 0 4px" }}>Ingredients on file</div>
+          <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, maxHeight: 96, overflowY: "auto", color: "#33414D" }}>{food.ingredients}</p>
+        </>
+      )}
+      <p style={{ margin: "10px 0 0", fontSize: 10.5, color: C.faint, lineHeight: 1.5 }}>
+        Why numbers may differ from your package: databases can lag reformulations,
+        recipes vary by region and batch, per-100 g figures are converted from label
+        servings with rounding, and some entries (Open Food Facts) are community-submitted.
+        Treat the physical package as the authoritative source.
+      </p>
+    </div>
+  );
+}
 
 function IngredientCheck({ text }) {
   const flags = analyzeIngredients(text);
@@ -1426,6 +1418,7 @@ function ReferenceTab({ targets }) {
 
 function HistoryTab({ history, onDeleteDay }) {
   const [windowDays, setWindowDays] = useState(7);
+  const [openDay, setOpenDay] = useState(null);
   const dates = Object.keys(history).sort().reverse();
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - windowDays);
   const inWindow = dates.filter(d => new Date(d + "T12:00:00") >= cutoff);
@@ -1493,25 +1486,59 @@ function HistoryTab({ history, onDeleteDay }) {
             </p>
           )}
 
-          <h3 className="na-eyebrow" style={{ margin: "22px 0 8px" }}>Logged days</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <tbody>
-              {inWindow.map(d => (
-                <tr key={d} style={{ borderTop: `1px solid ${C.rule}` }}>
-                  <td className="na-mono" style={{ padding: "7px 4px" }}>{d}</td>
-                  <td className="na-mono" style={{ padding: "7px 4px", textAlign: "right", color: C.faint }}>
-                    {Math.round(history[d].totals.kcal)} kcal · {TRACKED.filter(k => (history[d].pct[k] ?? 0) < 80).length} nutrient(s) low
-                  </td>
-                  <td style={{ padding: "7px 4px", textAlign: "right", width: 60 }}>
+          <h3 className="na-eyebrow" style={{ margin: "22px 0 8px" }}>Logged days — tap a date for its detail</h3>
+          <div>
+            {inWindow.map(d => {
+              const day = history[d];
+              const isOpen = openDay === d;
+              const lows = TRACKED.filter(k => (day.pct[k] ?? 0) < 80);
+              return (
+                <div key={d} style={{ borderTop: `1px solid ${C.rule}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button onClick={() => setOpenDay(isOpen ? null : d)} aria-expanded={isOpen}
+                      style={{ flex: 1, display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 4px", border: "none", background: "none", cursor: "pointer", fontSize: 13, textAlign: "left" }}>
+                      <span className="na-mono">{isOpen ? "−" : "+"} {d}</span>
+                      <span className="na-mono" style={{ color: C.faint }}>
+                        {Math.round(day.totals.kcal)} kcal · {lows.length} low
+                      </span>
+                    </button>
                     <button onClick={() => onDeleteDay(d)} aria-label={`Delete ${d} from history`}
-                      style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 12.5 }}>
+                      style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 12.5, padding: "9px 4px" }}>
                       Delete
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  {isOpen && (
+                    <div style={{ padding: "4px 4px 12px", fontSize: 12.5 }}>
+                      {lows.length > 0 && (
+                        <p style={{ margin: "0 0 8px", color: C.low }}>
+                          Below 80% of target: {lows.map(k => LABELS[k]).join(", ")}
+                        </p>
+                      )}
+                      {Array.isArray(day.items) && day.items.length > 0 ? (
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                          <tbody>
+                            {day.items.map((it, i) => (
+                              <tr key={i} style={{ borderTop: `1px dashed ${C.rule}` }}>
+                                <td style={{ padding: "5px 2px" }}>
+                                  {it.food.name}
+                                  {it.label && <span style={{ color: C.faint }}> — {it.label}</span>}
+                                </td>
+                                <td className="na-mono" style={{ padding: "5px 2px", textAlign: "right", color: C.faint }}>
+                                  {Math.round((it.food.kcal || 0) * it.qty)} kcal
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <p style={{ margin: 0, color: C.faint }}>Item detail wasn't stored for this day (logged before day-detail tracking).</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </>
       )}
     </section>
@@ -1519,138 +1546,52 @@ function HistoryTab({ history, onDeleteDay }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tab: Fitness assessment                                           */
+/*  Tab: Past items — full browser of scans, custom items & recipes   */
 /* ------------------------------------------------------------------ */
 
-function FitnessTab({ profile }) {
-  const [f, setF] = useState({ pushups: "", style: "", plank: "", reach: "", chair: "" });
-  const age = Number(profile.age) || null;
-  const sex = profile.sex;
-  const set = (k) => (e) => setF(s => ({ ...s, [k]: e.target.value }));
-
-  const pushupResult = f.pushups !== "" && age && f.style ? ratePushups(age, f.style, Number(f.pushups)) : null;
-  const plankResult = f.plank !== "" ? ratePlank(Number(f.plank)) : null;
-  const reachResult = f.reach ? REACH_OPTIONS.find(o => o.v === f.reach) : null;
-  const chairBand = age && age >= 60 && (sex === "male" || sex === "female")
-    ? ageBand(age, Object.keys(CHAIR_STAND_MIN[sex])) : null;
-  const chairResult = f.chair !== "" && chairBand
-    ? (Number(f.chair) >= CHAIR_STAND_MIN[sex][chairBand] ? "At or above average" : "Below average — worth discussing with a physician")
-    : null;
-
-  const ratingColor = (r) => /excellent|very good|good|above/i.test(r) ? C.ok : /fair|average/i.test(r) && !/below/i.test(r) ? C.low : C.high;
-
+function PastItemsTab({ barcodes, customFoods, recipes, onSelect, onDeleteScan, onDeleteCustom, onDeleteRecipe }) {
+  const [filter, setFilter] = useState("");
+  const q = filter.trim().toLowerCase();
+  const fits = (name) => !q || name.toLowerCase().includes(q);
+  const groups = [
+    { label: "Scanned products", rows: Object.values(barcodes).filter(e => fits(e.food.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(e => ({ key: e.code, food: e.food, meta: e.code, del: () => onDeleteScan(e.code) })) },
+    { label: "Custom items", rows: Object.values(customFoods).filter(e => fits(e.food.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(e => ({ key: e.food.name, food: e.food, meta: `${Math.round(e.food.kcal)} kcal/serving`, del: () => onDeleteCustom(e.food.name) })) },
+    { label: "Recipes", rows: Object.values(recipes).filter(r => fits(r.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(r => ({ key: r.name, food: r.food, meta: `${Math.round(r.food.kcal)} kcal/serving`, del: () => onDeleteRecipe(r.name), link: r.link })) },
+  ];
+  const total = groups.reduce((n, g) => n + g.rows.length, 0);
   return (
     <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
-      <SectionHead title="Fitness & flexibility assessment" sub="Field tests scored against published normative data where it exists. Age and sex are taken from your profile." />
-
-      {!age && (
-        <p style={{ fontSize: 13, color: C.low, marginTop: 0 }}>
-          Enter your age (and sex, if willing) on the Nutrition report tab's profile to score against age-matched norms.
-        </p>
-      )}
-
-      <div style={{ display: "grid", gap: 22 }}>
-        {/* Push-ups */}
-        <div>
-          <h3 className="na-serif" style={{ margin: "0 0 4px", fontSize: 16.5, color: C.navy }}>Push-ups (max consecutive)</h3>
-          <p style={{ margin: "0 0 10px", fontSize: 13, color: C.faint, lineHeight: 1.55 }}>
-            Do whichever style suits you — standard (on toes) or modified (on knees) —
-            and pick it below. Scored against ACSM/CSEP normative tables, ages 20–69.
-          </p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <div style={{ width: 190 }}>
-              <Field label="Push-up style">
-                <select className="na-select" value={f.style || ""} onChange={set("style")}>
-                  <option value="">Select…</option>
-                  <option value="standard">Standard (on toes)</option>
-                  <option value="modified">Modified (on knees)</option>
-                </select>
-              </Field>
+      <SectionHead title="Past items" sub="Everything you've scanned, entered, or imported. Tap an item to select it on the Daily Log." />
+      <input className="na-input" type="search" value={filter} onChange={e => setFilter(e.target.value)}
+        placeholder="Filter by name…" style={{ marginBottom: 12, maxWidth: 380 }} />
+      {total === 0 && <p style={{ margin: 0, fontSize: 13.5, color: C.faint }}>No past items{q ? " match that filter" : " yet"}.</p>}
+      {groups.map(g => g.rows.length > 0 && (
+        <div key={g.label} style={{ marginBottom: 14 }}>
+          <div className="na-eyebrow" style={{ margin: "8px 0 2px" }}>{g.label} ({g.rows.length})</div>
+          {g.rows.map(row => (
+            <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, borderTop: `1px solid ${C.rule}` }}>
+              <button onClick={() => onSelect(row.food)}
+                style={{ flex: 1, display: "flex", justifyContent: "space-between", gap: 8, padding: "10px 4px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
+                <span>
+                  {row.food.name}
+                  {(() => { const n = analyzeIngredients(row.food.ingredients).filter(f => f.level !== "note").length;
+                    return n > 0 ? <span style={{ color: C.low, fontWeight: 600, marginLeft: 8, fontSize: 12 }}>\u26a0 {n} flagged</span> : null; })()}
+                </span>
+                <span className="na-mono" style={{ color: C.faint, fontSize: 11.5, whiteSpace: "nowrap" }}>{row.meta}</span>
+              </button>
+              {row.link && (
+                <a href={row.link} target="_top" rel="noopener" style={{ fontSize: 12, color: C.accent, textDecoration: "none", padding: "10px 4px", whiteSpace: "nowrap" }}>
+                  Recipe \u2197
+                </a>
+              )}
+              <button onClick={row.del} aria-label={`Delete ${row.food.name}`}
+                style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 12.5, padding: "10px 6px" }}>
+                Delete
+              </button>
             </div>
-            <div style={{ width: 150 }}>
-              <Field label="Reps completed"><input className="na-input" type="number" min="0" value={f.pushups} onChange={set("pushups")} /></Field>
-            </div>
-          </div>
-          {pushupResult && (pushupResult.rating ? (
-            <p style={{ fontSize: 14, marginBottom: 0 }}>
-              Rating for {f.style} push-ups, ages {pushupResult.band}: <strong style={{ color: ratingColor(pushupResult.rating) }}>{pushupResult.rating}</strong>
-              <span className="na-mono" style={{ fontSize: 12, color: C.faint, marginLeft: 10 }}>
-                (fair ≥{pushupResult.thresholds[0]} · good ≥{pushupResult.thresholds[1]} · very good ≥{pushupResult.thresholds[2]} · excellent ≥{pushupResult.thresholds[3]})
-              </span>
-              <span style={{ display: "block", fontSize: 11, color: C.faint, marginTop: 3 }}>
-                Note: the published tables were normed on standard and modified protocols
-                separately, so the style you pick determines the reference — ratings
-                across styles aren't directly comparable.
-              </span>
-            </p>
-          ) : <p style={{ fontSize: 13, color: C.low, marginBottom: 0 }}>{pushupResult.note}</p>)}
-        </div>
-
-        {/* Plank */}
-        <div style={{ borderTop: `1px solid ${C.rule}`, paddingTop: 18 }}>
-          <h3 className="na-serif" style={{ margin: "0 0 4px", fontSize: 16.5, color: C.navy }}>Plank hold</h3>
-          <p style={{ margin: "0 0 10px", fontSize: 13, color: C.faint, lineHeight: 1.55 }}>
-            Forearm plank, straight line from head to heels. No standardized age-normed database
-            exists for the plank; categories below reflect common fitness-industry guidance.
-          </p>
-          <div style={{ maxWidth: 180 }}>
-            <Field label="Seconds held"><input className="na-input" type="number" min="0" value={f.plank} onChange={set("plank")} /></Field>
-          </div>
-          {plankResult && (
-            <p style={{ fontSize: 14, marginBottom: 0 }}>Rating: <strong style={{ color: ratingColor(plankResult) }}>{plankResult}</strong></p>
-          )}
-        </div>
-
-        {/* Sit and reach */}
-        <div style={{ borderTop: `1px solid ${C.rule}`, paddingTop: 18 }}>
-          <h3 className="na-serif" style={{ margin: "0 0 4px", fontSize: 16.5, color: C.navy }}>Hamstring & lower-back flexibility</h3>
-          <p style={{ margin: "0 0 10px", fontSize: 13, color: C.faint, lineHeight: 1.55 }}>
-            Simplified toe-touch version of the sit-and-reach test. Sit with legs straight,
-            reach slowly toward your toes without bouncing. (The formal ACSM test uses a
-            measuring box; this is a practical approximation.)
-          </p>
-          <div style={{ maxWidth: 260 }}>
-            <Field label="Farthest point reached">
-              <select className="na-select" value={f.reach} onChange={set("reach")}>
-                <option value="">Select…</option>
-                {REACH_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
-              </select>
-            </Field>
-          </div>
-          {reachResult && (
-            <p style={{ fontSize: 14, marginBottom: 0 }}>Rating: <strong style={{ color: ratingColor(reachResult.rating) }}>{reachResult.rating}</strong></p>
-          )}
-        </div>
-
-        {/* Chair stand */}
-        <div style={{ borderTop: `1px solid ${C.rule}`, paddingTop: 18 }}>
-          <h3 className="na-serif" style={{ margin: "0 0 4px", fontSize: 16.5, color: C.navy }}>30-second chair stand (ages 60+)</h3>
-          <p style={{ margin: "0 0 10px", fontSize: 13, color: C.faint, lineHeight: 1.55 }}>
-            Stand fully and sit back down as many times as possible in 30 seconds, arms crossed.
-            Scored against CDC STEADI norms for ages 60–94. Under 60, most healthy adults manage 20 or more.
-          </p>
-          <div style={{ maxWidth: 180 }}>
-            <Field label="Stands in 30 s"><input className="na-input" type="number" min="0" value={f.chair} onChange={set("chair")} /></Field>
-          </div>
-          {f.chair !== "" && (chairResult ? (
-            <p style={{ fontSize: 14, marginBottom: 0 }}>
-              Result for {sex}, {chairBand}: <strong style={{ color: ratingColor(chairResult) }}>{chairResult}</strong>
-              <span className="na-mono" style={{ fontSize: 12, color: C.faint, marginLeft: 10 }}>(average threshold: {CHAIR_STAND_MIN[sex][chairBand]})</span>
-            </p>
-          ) : (
-            <p style={{ fontSize: 13, color: C.faint, marginBottom: 0 }}>
-              CDC norms apply to ages 60–94 with sex specified. {Number(f.chair) >= 20 ? "20+ stands is a strong result for a younger adult." : ""}
-            </p>
           ))}
         </div>
-      </div>
-
-      <p style={{ fontSize: 12, color: C.faint, lineHeight: 1.6, marginTop: 22, marginBottom: 0, borderTop: `1px solid ${C.rule}`, paddingTop: 14 }}>
-        Sources: push-up and sit-and-reach protocols adapted from the ACSM Guidelines for Exercise
-        Testing and Prescription and CSEP normative tables; chair-stand thresholds from the CDC
-        STEADI program. Stop any test that causes pain, and check with a physician before fitness
-        testing if you have cardiovascular or joint conditions.
-      </p>
+      ))}
     </section>
   );
 }
@@ -1688,8 +1629,6 @@ export default function NutritionAssessment() {
   const [barcodes, setBarcodes] = useState({});
   const [customNutrients, setCustomNutrients] = useState({});
   const [customFoods, setCustomFoods] = useState({});
-  const [showPastAll, setShowPastAll] = useState(false);
-  const [pastFilter, setPastFilter] = useState("");
   const [newNutrient, setNewNutrient] = useState({ name: "", unit: "g", target: "" });
   const [saveMsg, setSaveMsg] = useState("");
   const [users, setUsers] = useState(["Me"]);
@@ -1861,6 +1800,13 @@ export default function NutritionAssessment() {
 
   const set = (k) => (e) => setProfile(p => ({ ...p, [k]: e.target.value }));
 
+  // Central selection helper: defaults per-100g products to their labeled serving.
+  const chooseFood = (food) => {
+    setSelected(food); setQuery(""); setUsdaResults([]);
+    if (food.per100g && food.servingG) { setAmount(1); setAmountUnit("serving"); }
+    else { setAmount(100); setAmountUnit("g"); }
+  };
+
   // Auto-credit custom nutrients from the research library (e.g. salmon -> omega-3)
   const enrichFood = (food) => {
     const cns = Object.values(customNutrients).filter(cn => cn.presetKey);
@@ -1879,10 +1825,17 @@ export default function NutritionAssessment() {
     if (!selected) return;
     let multiplier, label = null;
     if (selected.per100g) {
-      const u = UNITS[amountUnit];
-      const g = (Number(amount) || 100) * u.grams;
+      let g;
+      if (amountUnit === "serving" && selected.servingG) {
+        const n = Number(amount) || 1;
+        g = n * selected.servingG;
+        label = `${n} serving${n !== 1 ? "s" : ""} (${Math.round(g)} g)`;
+      } else {
+        const u = UNITS[amountUnit] || UNITS.g;
+        g = (Number(amount) || 100) * u.grams;
+        label = amountUnit === "g" ? `${Math.round(g)} g` : `${amount} ${u.label}${u.approx ? ` (~${Math.round(g)} g)` : ` (${Math.round(g)} g)`}`;
+      }
       multiplier = g / 100;
-      label = amountUnit === "g" ? `${Math.round(g)} g` : `${amount} ${u.label}${u.approx ? ` (~${Math.round(g)} g)` : ` (${Math.round(g)} g)`}`;
     } else {
       multiplier = Number(qty) || 1;
     }
@@ -1913,8 +1866,8 @@ export default function NutritionAssessment() {
     try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) {}
     const known = barcodes[code];
     if (known) {
-      setSelected(known.food); setQuery(""); setUsdaResults([]);
-      setScanStatus(`✓ Scan successful (${code}) — from your saved items: ${known.food.name}. Set the amount, then add to log.`);
+      chooseFood(known.food);
+      setScanStatus(`✓ Scan successful (${code}) — from your saved items: ${known.food.name}. Verify the label below, set the amount, then add to log.`);
       const next = { ...barcodes, [code]: { ...known, lastUsed: Date.now() } };
       setBarcodes(next);
       saveStore(userKey(BKEY, currentUser), next);
@@ -1923,8 +1876,8 @@ export default function NutritionAssessment() {
     setScanStatus(`✓ Scan successful (${code}) — looking up the product…`);
     try {
       const food = await lookupBarcode(code);
-      setSelected(food); setQuery(""); setUsdaResults([]);
-      setScanStatus(`✓ Found: ${food.name}. Set the amount, then add to log. Saved to your scanned items for next time.`);
+      chooseFood(food);
+      setScanStatus(`✓ Found: ${food.name}. Verify the label below, set the amount, then add to log. Saved to your scanned items for next time.`);
       const next = { ...barcodes, [code]: { code, food, lastUsed: Date.now() } };
       setBarcodes(next);
       await saveStore(userKey(BKEY, currentUser), next);
@@ -2033,10 +1986,10 @@ export default function NutritionAssessment() {
   };
 
   const TABS = [
-    ["report", "Report"],
-    ["reference", "Nutrients"],
+    ["report", "Daily Log"],
     ["history", "History"],
-    ["fitness", "Fitness"],
+    ["past", "Past Items"],
+    ["reference", "Nutrient Info"],
   ];
 
   return (
@@ -2049,7 +2002,7 @@ export default function NutritionAssessment() {
             <h1 className="na-serif" style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.15 }}>
               Nutrient Tracker
             </h1>
-            <div className="na-eyebrow" style={{ marginTop: 2 }}>Daily intake, history & fitness</div>
+            <div className="na-eyebrow" style={{ marginTop: 2 }}>Daily intake, history & food insights</div>
           </div>
           <nav role="tablist" style={{ display: "flex", gap: 4, marginTop: 10, overflowX: "auto" }}>
             {TABS.map(([id, label]) => (
@@ -2076,7 +2029,11 @@ export default function NutritionAssessment() {
 
         {tab === "reference" && <ReferenceTab targets={targets} />}
         {tab === "history" && <HistoryTab history={history} onDeleteDay={deleteHistoryDay} />}
-        {tab === "fitness" && <FitnessTab profile={profile} />}
+        {tab === "past" && (
+          <PastItemsTab barcodes={barcodes} customFoods={customFoods} recipes={recipes}
+            onSelect={(f) => { chooseFood(f); setTab("report"); }}
+            onDeleteScan={deleteBarcode} onDeleteCustom={deleteCustomFood} onDeleteRecipe={deleteSavedRecipe} />
+        )}
 
         {tab === "report" && (
           <>
@@ -2224,7 +2181,7 @@ export default function NutritionAssessment() {
                   <ul style={{ listStyle: "none", margin: "4px 0 14px", padding: 0, border: `1px solid ${C.rule}`, borderRadius: 10, maxHeight: 280, overflowY: "auto" }}>
                     {Object.values(barcodes).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map((entry, i) => (
                       <li key={entry.code} style={{ display: "flex", alignItems: "center", gap: 6, borderTop: i ? `1px solid ${C.rule}` : "none" }}>
-                        <button onClick={() => { setSelected(entry.food); setQuery(""); setUsdaResults([]); }}
+                        <button onClick={() => chooseFood(entry.food)}
                           style={{ flex: 1, display: "flex", justifyContent: "space-between", gap: 8, padding: "10px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
                           <span>{entry.food.name}</span>
                           <span className="na-mono" style={{ color: C.faint, fontSize: 11.5, whiteSpace: "nowrap" }}>
@@ -2301,7 +2258,7 @@ export default function NutritionAssessment() {
                     <ul style={{ position: "absolute", zIndex: 5, left: 0, right: 0, top: "100%", margin: 0, padding: 0, listStyle: "none", background: "#fff", border: `1px solid ${C.rule}`, borderTop: "none", boxShadow: "0 6px 16px rgba(24,36,48,0.12)" }}>
                       {matches.map(f => (
                         <li key={f.name}>
-                          <button onClick={() => { setSelected(f); setQuery(""); }}
+                          <button onClick={() => chooseFood(f)}
                             style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 10px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
                             <span>{f.name}</span>
                             <span className="na-mono" style={{ color: C.faint, fontSize: 12 }}>
@@ -2321,10 +2278,11 @@ export default function NutritionAssessment() {
                 )}
                 <div style={{ width: 190 }}>
                   {selected && selected.per100g ? (
-                    <Field label="Amount" note={UNITS[amountUnit].approx ? "Volume units are approximate — density varies by food." : null}>
+                    <Field label="Amount" note={amountUnit !== "serving" && UNITS[amountUnit] && UNITS[amountUnit].approx ? "Volume units are approximate — density varies by food." : null}>
                       <div style={{ display: "flex", gap: 6 }}>
                         <input className="na-input" type="number" min="0" step="any" value={amount} onChange={e => setAmount(e.target.value)} />
-                        <select className="na-select" style={{ width: 82 }} value={amountUnit} onChange={e => setAmountUnit(e.target.value)}>
+                        <select className="na-select" style={{ width: 118 }} value={amountUnit} onChange={e => setAmountUnit(e.target.value)}>
+                          {selected.servingG && <option value="serving">serving ({Math.round(selected.servingG)} g)</option>}
                           {Object.entries(UNITS).map(([k, u]) => <option key={k} value={k}>{u.label}</option>)}
                         </select>
                       </div>
@@ -2354,13 +2312,13 @@ export default function NutritionAssessment() {
                     onChange={e => {
                       const v = e.target.value;
                       if (!v) return;
-                      if (v === "all") { setShowPastAll(true); setPastFilter(""); return; }
+                      if (v === "all") { setTab("past"); return; }
                       const [kind, key] = [v.slice(0, 1), v.slice(2)];
                       let food = null;
                       if (kind === "s" && barcodes[key]) food = barcodes[key].food;
                       if (kind === "c" && customFoods[key]) food = customFoods[key].food;
                       if (kind === "r" && recipes[key]) food = recipes[key].food;
-                      if (food) { setSelected(food); setQuery(""); setUsdaResults([]); setScanStatus(""); }
+                      if (food) { chooseFood(food); setScanStatus(""); }
                     }}>
                     <option value="">Past items…</option>
                     <option value="all">View all past items ({Object.keys(barcodes).length + Object.keys(customFoods).length + Object.keys(recipes).length})…</option>
@@ -2396,51 +2354,11 @@ export default function NutritionAssessment() {
                 Add to log
               </button>
 
-              {showPastAll && (() => {
-                const q = pastFilter.trim().toLowerCase();
-                const fits = (name) => !q || name.toLowerCase().includes(q);
-                const groups = [
-                  { label: "Scanned products", rows: Object.values(barcodes).filter(e => fits(e.food.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(e => ({ key: e.code, food: e.food, meta: e.code, del: () => deleteBarcode(e.code) })) },
-                  { label: "Custom items", rows: Object.values(customFoods).filter(e => fits(e.food.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(e => ({ key: e.food.name, food: e.food, meta: `${Math.round(e.food.kcal)} kcal/serving`, del: () => deleteCustomFood(e.food.name) })) },
-                  { label: "Recipes", rows: Object.values(recipes).filter(r => fits(r.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(r => ({ key: r.name, food: r.food, meta: `${Math.round(r.food.kcal)} kcal/serving`, del: () => deleteSavedRecipe(r.name) })) },
-                ];
-                const total = groups.reduce((n, g) => n + g.rows.length, 0);
-                return (
-                  <div style={{ marginTop: 14, padding: "14px 16px", background: C.paper, border: `1px solid ${C.rule}`, borderRadius: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                      <span className="na-eyebrow">All past items</span>
-                      <button className="na-btn na-btn-quiet" style={{ padding: "5px 12px" }} onClick={() => setShowPastAll(false)}>Close</button>
-                    </div>
-                    <input className="na-input" type="search" value={pastFilter} onChange={e => setPastFilter(e.target.value)}
-                      placeholder="Filter by name…" style={{ marginBottom: 10 }} />
-                    {total === 0 && <p style={{ margin: 0, fontSize: 13, color: C.faint }}>No past items{q ? " match that filter" : " yet"}.</p>}
-                    <div style={{ maxHeight: 340, overflowY: "auto" }}>
-                      {groups.map(g => g.rows.length > 0 && (
-                        <div key={g.label} style={{ marginBottom: 8 }}>
-                          <div className="na-eyebrow" style={{ margin: "6px 0 2px" }}>{g.label} ({g.rows.length})</div>
-                          {g.rows.map(row => (
-                            <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, borderTop: `1px solid ${C.rule}` }}>
-                              <button onClick={() => { setSelected(row.food); setQuery(""); setUsdaResults([]); setScanStatus(""); setShowPastAll(false); }}
-                                style={{ flex: 1, display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 4px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
-                                <span>{row.food.name}</span>
-                                <span className="na-mono" style={{ color: C.faint, fontSize: 11.5, whiteSpace: "nowrap" }}>{row.meta}</span>
-                              </button>
-                              <button onClick={row.del} aria-label={`Delete ${row.food.name}`}
-                                style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 12.5, padding: "9px 6px" }}>
-                                Delete
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
 
               {showScanner && <BarcodeScanner onDetect={handleBarcode} onClose={() => setShowScanner(false)} />}
               {scanStatus && <p className="na-mono" style={{ marginTop: 12, marginBottom: 0, fontSize: 12.5, color: C.ok }}>{scanStatus}</p>}
               {bonusMsg && <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: C.ok, fontWeight: 600 }}>{bonusMsg}</p>}
+              {selected && selected.per100g && <LabelInfo food={selected} />}
               {selected && selected.ingredients && <IngredientCheck text={selected.ingredients} />}
               {selected && <MealPatternTips food={selected} />}
               {selected && <RestrictionCheck food={selected} active={profile.restrictions} />}
@@ -2451,7 +2369,7 @@ export default function NutritionAssessment() {
                 <ul style={{ listStyle: "none", margin: "12px 0 0", padding: 0, border: `1px solid ${C.rule}`, borderRadius: 3, maxHeight: 260, overflowY: "auto" }}>
                   {usdaResults.map((f, i) => (
                     <li key={i} style={{ borderTop: i ? `1px solid ${C.rule}` : "none" }}>
-                      <button onClick={() => { setSelected(f); setUsdaResults([]); }}
+                      <button onClick={() => chooseFood(f)}
                         style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "10px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
                         <span>{f.name}</span>
                         <span className="na-mono" style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}>{Math.round(f.kcal)} kcal / 100 g</span>
@@ -2506,6 +2424,9 @@ export default function NutritionAssessment() {
                           <span style={{ marginLeft: 6, fontSize: 11.5, color: C.faint }}>
                             {item.food.per100g ? "g" : item.food.isRecipe ? "serv." : "× serving"}
                           </span>
+                          {item.label && !/^\d+ g$/.test(item.label) && (
+                            <span style={{ display: "block", fontSize: 10.5, color: C.faint, marginTop: 2 }}>logged as {item.label}</span>
+                          )}
                         </td>
                         <td className="na-mono" style={{ padding: "8px 4px", textAlign: "right" }}>{Math.round(item.food.kcal * item.qty)}</td>
                         <td style={{ padding: "8px 4px", textAlign: "right" }}>
@@ -2733,8 +2654,7 @@ export default function NutritionAssessment() {
           Sources: reference values adapted from the U.S. Dietary Reference Intakes
           (National Academies) and the Dietary Guidelines for Americans; food composition
           data from USDA FoodData Central (fdc.nal.usda.gov) and Open Food Facts; built-in
-          quick-list figures are approximate. Fitness norms adapted from ACSM/CSEP
-          normative tables and the CDC STEADI program.
+          quick-list figures are approximate.
         </footer>
       </main>
     </div>
