@@ -119,6 +119,7 @@ function fdcToFood(item) {
     if (key && typeof n.value === "number") food[key] = n.value;
   }
   if (item.brandOwner) food.name += ` — ${item.brandOwner}`;
+  if (item.ingredients) food.ingredients = String(item.ingredients);
   return food;
 }
 
@@ -150,6 +151,7 @@ function offToFood(p) {
     calcium: g("calcium") * 1000, iron: g("iron") * 1000,
     potassium: g("potassium") * 1000, sodium: g("sodium") * 1000,
     vitC: g("vitamin-c") * 1000, vitD: g("vitamin-d") * 1e6,
+    ingredients: p.ingredients_text ? String(p.ingredients_text) : undefined,
   };
 }
 
@@ -508,6 +510,171 @@ const css = `
 /* ------------------------------------------------------------------ */
 /*  Shared components                                                 */
 /* ------------------------------------------------------------------ */
+
+
+/* ------------------------------------------------------------------ */
+/*  Ingredient watchlist — flags based on regulatory actions and      */
+/*  IARC/WHO/EFSA assessments, not internet folklore. Levels:         */
+/*  avoid = banned/withdrawn somewhere major; caution = classified    */
+/*  or restricted; note = informational (e.g. added-sugar aliases).   */
+/* ------------------------------------------------------------------ */
+
+const INGREDIENT_WATCHLIST = [
+  { match: ["partially hydrogenated"], name: "Partially hydrogenated oil (artificial trans fat)", level: "avoid", why: "removed from the FDA safe list; strongly linked to heart disease" },
+  { match: ["potassium bromate"], name: "Potassium bromate", level: "avoid", why: "possible carcinogen (IARC 2B); banned in the EU, UK, Canada, and elsewhere" },
+  { match: ["brominated vegetable oil"], name: "Brominated vegetable oil (BVO)", level: "avoid", why: "FDA revoked its authorization in 2024 over thyroid concerns" },
+  { match: ["red 3", "red no. 3", "red no 3", "erythrosine"], name: "Red dye No. 3", level: "avoid", why: "banned by the FDA in food (2025) after cancer findings in animal studies" },
+  { match: ["sodium nitrite", "sodium nitrate", "potassium nitrite", "potassium nitrate"], name: "Curing nitrites/nitrates", level: "caution", why: "processed meat cured with these is classified carcinogenic to humans (IARC Group 1)" },
+  { match: ["titanium dioxide"], name: "Titanium dioxide", level: "caution", why: "EFSA no longer considers it safe as a food additive; banned in the EU, still allowed in the US" },
+  { match: ["butylated hydroxyanisole", "bha"], name: "BHA", level: "caution", why: "possible carcinogen (IARC 2B)" },
+  { match: ["butylated hydroxytoluene", "bht"], name: "BHT", level: "note", why: "preservative with mixed evidence, often paired with BHA" },
+  { match: ["propylparaben"], name: "Propylparaben", level: "caution", why: "endocrine-disruption concerns; banned in the EU and under California's 2023 food act" },
+  { match: ["aspartame"], name: "Aspartame", level: "caution", why: "classified possibly carcinogenic (IARC 2B, 2023); WHO/JECFA kept the daily limit unchanged" },
+  { match: ["red 40", "allura red"], name: "Red dye No. 40", level: "caution", why: "linked to hyperactivity in some children; carries a mandatory warning label in the EU" },
+  { match: ["yellow 5", "tartrazine"], name: "Yellow dye No. 5", level: "caution", why: "linked to hyperactivity in some children; EU warning-label requirement" },
+  { match: ["yellow 6", "sunset yellow"], name: "Yellow dye No. 6", level: "caution", why: "linked to hyperactivity in some children; EU warning-label requirement" },
+  { match: ["high fructose corn syrup", "high-fructose corn syrup"], name: "High-fructose corn syrup", level: "note", why: "an added sugar; Dietary Guidelines cap added sugars at 10% of daily calories" },
+  { match: ["corn syrup", "invert sugar", "dextrose", "maltose", "fruit juice concentrate", "cane sugar"], name: "Added-sugar ingredients", level: "note", why: "count toward the 10%-of-calories added-sugar limit" },
+  { match: ["sodium benzoate"], name: "Sodium benzoate", level: "note", why: "can form traces of benzene alongside vitamin C; otherwise recognized as safe" },
+  { match: ["sucralose", "acesulfame"], name: "Non-sugar sweeteners", level: "note", why: "WHO (2023) advises against relying on them for weight control; safe within daily limits" },
+];
+
+
+/* ------------------------------------------------------------------ */
+/*  Gentler swaps — category-level alternatives shown alongside       */
+/*  ingredient flags. Tone: inform, never guilt; acknowledge cost     */
+/*  and access; moderation beats perfection.                          */
+/* ------------------------------------------------------------------ */
+
+const ALT_CURED_MEAT = {
+  id: "cured",
+  title: "Craving cured or dried meats?",
+  text: "Traditional dry-cured options — Spanish jamón, Prosciutto di Parma (salt-and-time only by consortium rule), or salami from small producers — often use few or no curing additives; check the label. They can be pricier or harder to find, so if they're not practical where you live, portion size and frequency matter far more than perfection. Heads-up: US products labeled “uncured / no nitrites added” that use celery powder contain the same nitrites naturally.",
+  searches: ["homemade beef jerky oven", "biltong recipe", "turkey jerky dehydrator recipe"],
+  safety: "Homemade jerky & curing safety (USDA guidance): heat meat to 160°F (165°F for poultry) before or during drying, follow tested recipes, and measure curing salts exactly for any fermented or cured project. Toss it if it smells sour or off, feels slimy or sticky, or grows fuzzy mold. Critical: botulism has no smell, taste, or visible sign — never trust your senses with improperly cured or sealed products. When in doubt, throw it out.",
+};
+
+const ALT_TRANS_FAT = {
+  id: "trans",
+  title: "Trans-fat swap",
+  text: "Partially hydrogenated oils are largely phased out; if a product still lists them, a butter- or olive-oil-based version of the same food is the straightforward swap.",
+  searches: [],
+};
+
+const ALT_DYES = {
+  id: "dyes",
+  title: "Craving something colorful?",
+  text: "Many brands sell naturally colored versions of the same candy or drink (beet, paprika, annatto, spirulina) — or fruit itself often scratches the itch. Same treat, different pigment.",
+  searches: ["naturally colored candy brands", "homemade fruit gummies recipe"],
+};
+
+const ALT_SUGAR = {
+  id: "sugar",
+  title: "Sweet-drink and snack swaps",
+  text: "Sparkling water with fruit, or simply a smaller portion of the real thing, keeps it enjoyable — the 10%-of-calories added-sugar guideline is a budget to spend, not a ban.",
+  searches: ["homemade soda syrup recipe", "infused sparkling water ideas"],
+};
+
+const ALT_SWEETENERS = {
+  id: "sweet",
+  title: "If artificial sweeteners bother you",
+  text: "A modest amount of regular sugar inside your added-sugar budget is a reasonable trade — neither option needs to be feared in sensible amounts.",
+  searches: [],
+};
+
+const FLAG_ALTERNATIVES = {
+  "Curing nitrites/nitrates": ALT_CURED_MEAT,
+  "Partially hydrogenated oil (artificial trans fat)": ALT_TRANS_FAT,
+  "Red dye No. 3": ALT_DYES,
+  "Red dye No. 40": ALT_DYES,
+  "Yellow dye No. 5": ALT_DYES,
+  "Yellow dye No. 6": ALT_DYES,
+  "High-fructose corn syrup": ALT_SUGAR,
+  "Added-sugar ingredients": ALT_SUGAR,
+  "Non-sugar sweeteners": ALT_SWEETENERS,
+};
+
+function analyzeIngredients(text) {
+  if (!text) return [];
+  const t = text.toLowerCase();
+  const found = new Map();
+  for (const w of INGREDIENT_WATCHLIST) {
+    for (const kw of w.match) {
+      const re = new RegExp("\\b" + kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
+      if (re.test(t)) { if (!found.has(w.name)) found.set(w.name, w); break; }
+    }
+  }
+  return [...found.values()];
+}
+
+const FLAG_COLOR = { avoid: C.high, caution: C.low, note: C.faint };
+
+function IngredientCheck({ text }) {
+  const flags = analyzeIngredients(text);
+  return (
+    <div style={{ marginTop: 12, padding: "12px 14px", background: C.paper, border: `1px solid ${C.rule}`, borderRadius: 10 }}>
+      <div className="na-eyebrow" style={{ marginBottom: 6 }}>Ingredient check</div>
+      {flags.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 12.5, color: C.ok, fontWeight: 600 }}>
+          ✓ No watchlist ingredients found in this product's label.
+        </p>
+      ) : (
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 }}>
+          {flags.map(f => (
+            <li key={f.name} style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+              <span aria-hidden style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: FLAG_COLOR[f.level], marginRight: 7 }} />
+              <strong>{f.name}</strong> — {f.why}.
+            </li>
+          ))}
+        </ul>
+      )}
+      {(() => {
+        const seen = new Set();
+        const alts = [];
+        for (const f of flags) {
+          const a = FLAG_ALTERNATIVES[f.name];
+          if (a && !seen.has(a.id)) { seen.add(a.id); alts.push(a); }
+        }
+        if (alts.length === 0) return null;
+        return (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.rule}` }}>
+            <div className="na-eyebrow" style={{ marginBottom: 6, color: C.ok }}>Gentler swaps — no guilt required</div>
+            {alts.map(a => (
+              <div key={a.id} style={{ marginBottom: 10 }}>
+                <p style={{ margin: "0 0 4px", fontSize: 12.5, lineHeight: 1.55 }}>
+                  <strong>{a.title}</strong> {a.text}
+                </p>
+                {a.searches.length > 0 && (
+                  <p style={{ margin: "0 0 4px", fontSize: 12, color: C.faint }}>
+                    Make it yourself — recipe searches:{" "}
+                    {a.searches.map((q, i) => (
+                      <React.Fragment key={q}>
+                        <a href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noopener"
+                          style={{ color: C.accent, textDecoration: "none", borderBottom: `1px solid ${C.accent}` }}>
+                          {q}
+                        </a>{i < a.searches.length - 1 ? " · " : ""}
+                      </React.Fragment>
+                    ))}
+                  </p>
+                )}
+                {a.safety && (
+                  <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.55, color: "#7a5210", background: "#f7ecd6", border: `1px solid ${C.rule}`, borderRadius: 8, padding: "8px 10px" }}>
+                    ⚠ {a.safety}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+      <p style={{ margin: "8px 0 0", fontSize: 10.5, color: C.faint, lineHeight: 1.5 }}>
+        Flags reflect regulatory actions and IARC/WHO/EFSA assessments; dose and frequency
+        matter, and occasional amounts differ from daily habits. Informational only, not
+        medical advice.
+      </p>
+    </div>
+  );
+}
 
 function Field({ label, children, note }) {
   return (
@@ -1698,6 +1865,8 @@ export default function NutritionAssessment() {
                           style={{ flex: 1, display: "flex", justifyContent: "space-between", gap: 8, padding: "10px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
                           <span>{entry.food.name}</span>
                           <span className="na-mono" style={{ color: C.faint, fontSize: 11.5, whiteSpace: "nowrap" }}>
+                            {(() => { const n = analyzeIngredients(entry.food.ingredients).filter(f => f.level !== "note").length;
+                              return n > 0 ? <span style={{ color: C.low, fontWeight: 600 }}>⚠ {n} flagged · </span> : null; })()}
                             {Math.round(entry.food.kcal)} kcal / 100 g · {entry.code}
                           </span>
                         </button>
@@ -1815,6 +1984,7 @@ export default function NutritionAssessment() {
               {showScanner && <BarcodeScanner onDetect={handleBarcode} onClose={() => setShowScanner(false)} />}
               {scanStatus && <p className="na-mono" style={{ marginTop: 12, marginBottom: 0, fontSize: 12.5, color: C.ok }}>{scanStatus}</p>}
               {bonusMsg && <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: C.ok, fontWeight: 600 }}>{bonusMsg}</p>}
+              {selected && selected.ingredients && <IngredientCheck text={selected.ingredients} />}
 
               {searchError && <p role="alert" style={{ marginTop: 12, marginBottom: 0, fontSize: 13, color: C.high }}>{searchError}</p>}
 
