@@ -536,6 +536,7 @@ const UKEY = "nutrition-users-v1";
 const BKEY = "nutrition-barcodes-v1";
 const CKEY = "nutrition-custom-nutrients-v1";
 const VKEY = "nutrition-ui-v1";
+const XKEY = "nutrition-custom-foods-v1";
 
 // Namespace stored data per person so several people can log on one device.
 // "Me" is the default, unnamed profile. Keys must not contain whitespace.
@@ -1686,6 +1687,9 @@ export default function NutritionAssessment() {
   const [recipes, setRecipes] = useState({});
   const [barcodes, setBarcodes] = useState({});
   const [customNutrients, setCustomNutrients] = useState({});
+  const [customFoods, setCustomFoods] = useState({});
+  const [showPastAll, setShowPastAll] = useState(false);
+  const [pastFilter, setPastFilter] = useState("");
   const [newNutrient, setNewNutrient] = useState({ name: "", unit: "g", target: "" });
   const [saveMsg, setSaveMsg] = useState("");
   const [users, setUsers] = useState(["Me"]);
@@ -1711,14 +1715,16 @@ export default function NutritionAssessment() {
   useEffect(() => {
     hydrated.current = false;
     (async () => {
-      const [h, r, p, b, c, v] = await Promise.all([
+      const [h, r, p, b, c, v, x] = await Promise.all([
         loadStore(userKey(HKEY, currentUser)),
         loadStore(userKey(RKEY, currentUser)),
         loadStore(userKey(PKEY, currentUser)),
         loadStore(userKey(BKEY, currentUser)),
         loadStore(userKey(CKEY, currentUser)),
         loadStore(userKey(VKEY, currentUser)),
+        loadStore(userKey(XKEY, currentUser)),
       ]);
+      setCustomFoods(x || {});
       setProfileOpen(!(v && v.profileOpen === false));
       setMacroStyle((v && v.macroStyle) || "standard");
       setCustomBands((v && v.customBands) || { carb: [45, 65], protein: [10, 35], fat: [20, 35] });
@@ -1953,6 +1959,13 @@ export default function NutritionAssessment() {
     setLog(l => [...l, { food, qty: v, label: `${v} ${cn.unit}`, id: Date.now() }]);
   };
 
+  const deleteCustomFood = async (name) => {
+    const next = { ...customFoods };
+    delete next[name];
+    setCustomFoods(next);
+    await saveStore(userKey(XKEY, currentUser), next);
+  };
+
   const deleteBarcode = async (code) => {
     const next = { ...barcodes };
     delete next[code];
@@ -1965,6 +1978,9 @@ export default function NutritionAssessment() {
     const food = { ...ZERO, name: custom.name, serving: "1 serving" };
     for (const k of ["kcal", "protein", "carb", "fat", "fiber", "sodium"]) food[k] = Number(custom[k]) || 0;
     for (const id of Object.keys(customNutrients)) { const v = Number(custom[id]); if (v > 0) food[id] = v; }
+    const nextCF = { ...customFoods, [food.name]: { food, lastUsed: Date.now() } };
+    setCustomFoods(nextCF);
+    saveStore(userKey(XKEY, currentUser), nextCF);
     setLog(l => [...l, { food, qty: 1, id: Date.now() }]);
     setCustom({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
     setShowCustom(false);
@@ -2319,12 +2335,58 @@ export default function NutritionAssessment() {
                     </Field>
                   )}
                 </div>
-                <button className="na-btn na-btn-quiet" onClick={() => { setShowScanner(s => !s); setScanStatus(""); }}>
+                <button className="na-btn na-btn-quiet" onClick={() => { setShowScanner(s => !s); setScanStatus(""); }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                  {!showScanner && (
+                    <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                      <circle cx="12" cy="13" r="3" />
+                    </svg>
+                  )}
                   {showScanner ? "Cancel scan" : "Scan barcode"}
                 </button>
                 <button className="na-btn na-btn-quiet" onClick={() => setShowCustom(s => !s)}>
                   {showCustom ? "Cancel custom item" : "Custom item"}
                 </button>
+                <div style={{ width: 160 }}>
+                  <select className="na-select" value="" aria-label="Past items"
+                    style={{ borderRadius: 999, padding: "10px 14px", fontSize: 13, fontWeight: 500, color: "#4a4137" }}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (!v) return;
+                      if (v === "all") { setShowPastAll(true); setPastFilter(""); return; }
+                      const [kind, key] = [v.slice(0, 1), v.slice(2)];
+                      let food = null;
+                      if (kind === "s" && barcodes[key]) food = barcodes[key].food;
+                      if (kind === "c" && customFoods[key]) food = customFoods[key].food;
+                      if (kind === "r" && recipes[key]) food = recipes[key].food;
+                      if (food) { setSelected(food); setQuery(""); setUsdaResults([]); setScanStatus(""); }
+                    }}>
+                    <option value="">Past items…</option>
+                    <option value="all">View all past items ({Object.keys(barcodes).length + Object.keys(customFoods).length + Object.keys(recipes).length})…</option>
+                    {Object.values(barcodes).length > 0 && (
+                      <optgroup label="Scanned products">
+                        {Object.values(barcodes).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 12).map(e => (
+                          <option key={"s:" + e.code} value={"s:" + e.code}>{e.food.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {Object.values(customFoods).length > 0 && (
+                      <optgroup label="Custom items">
+                        {Object.values(customFoods).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 12).map(e => (
+                          <option key={"c:" + e.food.name} value={"c:" + e.food.name}>{e.food.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {Object.values(recipes).length > 0 && (
+                      <optgroup label="Recipes">
+                        {Object.values(recipes).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 12).map(r => (
+                          <option key={"r:" + r.name} value={"r:" + r.name}>{r.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
               </div>
 
               {/* Primary action — sized and placed last to signal it records the entry */}
@@ -2333,6 +2395,48 @@ export default function NutritionAssessment() {
                   marginTop: 12, padding: "14px 18px", fontSize: 15.5, fontWeight: 600 }}>
                 Add to log
               </button>
+
+              {showPastAll && (() => {
+                const q = pastFilter.trim().toLowerCase();
+                const fits = (name) => !q || name.toLowerCase().includes(q);
+                const groups = [
+                  { label: "Scanned products", rows: Object.values(barcodes).filter(e => fits(e.food.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(e => ({ key: e.code, food: e.food, meta: e.code, del: () => deleteBarcode(e.code) })) },
+                  { label: "Custom items", rows: Object.values(customFoods).filter(e => fits(e.food.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(e => ({ key: e.food.name, food: e.food, meta: `${Math.round(e.food.kcal)} kcal/serving`, del: () => deleteCustomFood(e.food.name) })) },
+                  { label: "Recipes", rows: Object.values(recipes).filter(r => fits(r.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(r => ({ key: r.name, food: r.food, meta: `${Math.round(r.food.kcal)} kcal/serving`, del: () => deleteSavedRecipe(r.name) })) },
+                ];
+                const total = groups.reduce((n, g) => n + g.rows.length, 0);
+                return (
+                  <div style={{ marginTop: 14, padding: "14px 16px", background: C.paper, border: `1px solid ${C.rule}`, borderRadius: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                      <span className="na-eyebrow">All past items</span>
+                      <button className="na-btn na-btn-quiet" style={{ padding: "5px 12px" }} onClick={() => setShowPastAll(false)}>Close</button>
+                    </div>
+                    <input className="na-input" type="search" value={pastFilter} onChange={e => setPastFilter(e.target.value)}
+                      placeholder="Filter by name…" style={{ marginBottom: 10 }} />
+                    {total === 0 && <p style={{ margin: 0, fontSize: 13, color: C.faint }}>No past items{q ? " match that filter" : " yet"}.</p>}
+                    <div style={{ maxHeight: 340, overflowY: "auto" }}>
+                      {groups.map(g => g.rows.length > 0 && (
+                        <div key={g.label} style={{ marginBottom: 8 }}>
+                          <div className="na-eyebrow" style={{ margin: "6px 0 2px" }}>{g.label} ({g.rows.length})</div>
+                          {g.rows.map(row => (
+                            <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, borderTop: `1px solid ${C.rule}` }}>
+                              <button onClick={() => { setSelected(row.food); setQuery(""); setUsdaResults([]); setScanStatus(""); setShowPastAll(false); }}
+                                style={{ flex: 1, display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 4px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
+                                <span>{row.food.name}</span>
+                                <span className="na-mono" style={{ color: C.faint, fontSize: 11.5, whiteSpace: "nowrap" }}>{row.meta}</span>
+                              </button>
+                              <button onClick={row.del} aria-label={`Delete ${row.food.name}`}
+                                style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 12.5, padding: "9px 6px" }}>
+                                Delete
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {showScanner && <BarcodeScanner onDetect={handleBarcode} onClose={() => setShowScanner(false)} />}
               {scanStatus && <p className="na-mono" style={{ marginTop: 12, marginBottom: 0, fontSize: 12.5, color: C.ok }}>{scanStatus}</p>}
