@@ -1142,6 +1142,7 @@ export default function NutritionAssessment() {
   const [showScanner, setShowScanner] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
   const [bonusMsg, setBonusMsg] = useState("");
+  const [recSearch, setRecSearch] = useState("");
   const [custom, setCustom] = useState({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
   const [history, setHistory] = useState({});
   const [recipes, setRecipes] = useState({});
@@ -1267,6 +1268,17 @@ export default function NutritionAssessment() {
   };
 
   const deficits = useMemo(() => TRACKED.filter(k => pctOf(k) < 80), [totals, targets]); // eslint-disable-line
+
+  const recipeResults = useMemo(() => {
+    const q = recSearch.trim().toLowerCase();
+    if (!q) return null;
+    return RECIPES.filter(r =>
+      r.name.toLowerCase().includes(q) ||
+      r.desc.toLowerCase().includes(q) ||
+      r.meal.toLowerCase().includes(q) ||
+      r.richIn.some(k => LABELS[k].toLowerCase().includes(q))
+    );
+  }, [recSearch]);
 
   const recommendations = useMemo(() => {
     if (log.length === 0) return { mode: "plan", recipes: SAMPLE_DAY };
@@ -1832,11 +1844,34 @@ export default function NutritionAssessment() {
             {/* ---------- 04 Recommendations ---------- */}
             <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
               <SectionHead num="04" title="Meal recommendations"
-                sub={recommendations.mode === "plan"
-                  ? "Nothing logged yet — here is a sample day designed to meet the full nutrient panel."
-                  : recommendations.mode === "met"
-                    ? "All tracked nutrients are at or near target."
-                    : "Meals selected to close today's remaining gaps."} />
+                sub={recipeResults
+                  ? "Searching all recommended recipes by name, ingredient, meal, or nutrient."
+                  : recommendations.mode === "plan"
+                    ? "Nothing logged yet — here is a sample day designed to meet the full nutrient panel."
+                    : recommendations.mode === "met"
+                      ? "All tracked nutrients are at or near target."
+                      : "Meals selected to close today's remaining gaps."} />
+
+              <div style={{ marginBottom: 16, maxWidth: 380 }}>
+                <Field label="Search recipes">
+                  <input className="na-input" type="search" value={recSearch}
+                    onChange={e => setRecSearch(e.target.value)}
+                    placeholder="e.g. salmon, breakfast, iron, calcium…" />
+                </Field>
+              </div>
+
+              {recipeResults ? (
+                recipeResults.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: 13.5, color: C.faint }}>
+                    No recipes match "{recSearch}". Try a nutrient like "iron" or a meal like "breakfast".
+                  </p>
+                ) : (
+                  <div style={{ display: "grid", gap: 12 }}>
+                    {recipeResults.map(r => <RecipeCard key={r.name} recipe={r} deficits={null} />)}
+                  </div>
+                )
+              ) : (
+                <>
 
               {recommendations.mode === "catchup" && (
                 <p style={{ marginTop: 0, fontSize: 13.5 }}>
@@ -1857,6 +1892,8 @@ export default function NutritionAssessment() {
                     <RecipeCard key={r.name} recipe={r} deficits={recommendations.mode === "catchup" ? deficits : null} />
                   ))}
                 </div>
+              )}
+                </>
               )}
             </section>
           </>
