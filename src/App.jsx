@@ -87,6 +87,22 @@ const KEYS = Object.keys(ZERO);
 /*  USDA FoodData Central integration (values per 100 g)              */
 /* ------------------------------------------------------------------ */
 
+// Site owner: replace with your own free key from https://api.data.gov/signup
+// DEMO_KEY works but is rate-limited (~30 lookups/hour per visitor IP).
+const USDA_API_KEY = "DEMO_KEY";
+
+// Approximate gram equivalents for household measures. Weight units are
+// exact; volume units assume a typical density and are marked approximate.
+const UNITS = {
+  g: { grams: 1, label: "g" },
+  oz: { grams: 28.35, label: "oz" },
+  lb: { grams: 453.6, label: "lb" },
+  tsp: { grams: 5, label: "tsp", approx: true },
+  tbsp: { grams: 15, label: "tbsp", approx: true },
+  cup: { grams: 240, label: "cup", approx: true },
+  ml: { grams: 1, label: "ml", approx: true },
+};
+
 const FDC_NUTRIENTS = {
   1008: "kcal", 1003: "protein", 1005: "carb", 1004: "fat", 1079: "fiber",
   1087: "calcium", 1089: "iron", 1092: "potassium", 1093: "sodium",
@@ -103,11 +119,11 @@ function fdcToFood(item) {
   return food;
 }
 
-async function searchFdc(query, apiKey) {
-  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(apiKey || "DEMO_KEY")}` +
+async function searchFdc(query) {
+  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}` +
     `&query=${encodeURIComponent(query)}&pageSize=8&dataType=Foundation,SR%20Legacy,Branded`;
   const res = await fetch(url);
-  if (res.status === 429) throw new Error("Rate limit reached — add your own free API key.");
+  if (res.status === 429) throw new Error("USDA rate limit reached — try again in a few minutes.");
   if (!res.ok) throw new Error(`USDA API error (${res.status}).`);
   const data = await res.json();
   return (data.foods || []).map(fdcToFood);
@@ -134,9 +150,9 @@ function offToFood(p) {
   };
 }
 
-async function lookupBarcode(code, apiKey) {
+async function lookupBarcode(code) {
   try {
-    const foods = await searchFdc(code, apiKey);
+    const foods = await searchFdc(code);
     if (foods.length > 0) return foods[0];
   } catch (e) { /* fall through to Open Food Facts */ }
   const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`);
@@ -305,56 +321,67 @@ const REACH_OPTIONS = [
 
 const memStore = {};
 const HKEY = "nutrition-history-v1";
+const RKEY = "nutrition-recipes-v1";
+const PKEY = "nutrition-profile-v1";
+const UKEY = "nutrition-users-v1";
 
-async function loadHistory() {
+// Namespace stored data per person so several people can log on one device.
+// "Me" is the default, unnamed profile. Keys must not contain whitespace.
+function userKey(base, user) {
+  return !user || user === "Me" ? base : `${base}:${user.replace(/[^\w-]/g, "_")}`;
+}
+
+async function loadStore(key) {
   try {
     if (typeof window !== "undefined" && window.storage) {
-      const r = await window.storage.get(HKEY);
+      const r = await window.storage.get(key);
       if (r && r.value) return JSON.parse(r.value);
     }
   } catch (e) { /* key missing or unavailable */ }
   try {
-    const v = window.localStorage && window.localStorage.getItem(HKEY);
+    const v = window.localStorage && window.localStorage.getItem(key);
     if (v) return JSON.parse(v);
   } catch (e) { /* blocked */ }
-  return memStore[HKEY] || {};
+  return memStore[key] || {};
 }
 
-async function saveHistory(hist) {
-  const json = JSON.stringify(hist);
-  memStore[HKEY] = hist;
-  try { if (typeof window !== "undefined" && window.storage) { await window.storage.set(HKEY, json); return "cloud"; } } catch (e) {}
-  try { window.localStorage.setItem(HKEY, json); return "local"; } catch (e) {}
+async function saveStore(key, obj) {
+  const json = JSON.stringify(obj);
+  memStore[key] = obj;
+  try { if (typeof window !== "undefined" && window.storage) { await window.storage.set(key, json); return "cloud"; } } catch (e) {}
+  try { window.localStorage.setItem(key, json); return "local"; } catch (e) {}
   return "memory";
 }
 
+
 /* ------------------------------------------------------------------ */
-/*  Design tokens                                                     */
+/*  Design tokens — matched to the Citrus&Spice recipe site           */
 /* ------------------------------------------------------------------ */
 
 const C = {
-  ink: "#182430", navy: "#1E3A55", rule: "#D7DEE5", paper: "#F6F8F9",
-  panel: "#FFFFFF", faint: "#5B6B79", ok: "#1E7145", low: "#9A6A12",
-  high: "#A63A2B", accent: "#0F6E7C",
+  ink: "#1c1814", navy: "#1c1814", rule: "#d9cfbe", paper: "#f5efe6",
+  panel: "#fbf7f0", faint: "#8a7e6e", ok: "#6b7148", low: "#9a6a12",
+  high: "#9d3f29", accent: "#c5573b",
 };
 
 const css = `
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 * { box-sizing: border-box; }
-.na-root { font-family: 'Public Sans', system-ui, sans-serif; color: ${C.ink}; background: ${C.paper}; min-height: 100vh; }
-.na-serif { font-family: 'Source Serif 4', Georgia, serif; }
+.na-root { font-family: 'Inter', system-ui, sans-serif; color: ${C.ink}; background: ${C.paper}; min-height: 100vh; }
+.na-serif { font-family: 'Fraunces', Georgia, serif; letter-spacing: -0.01em; }
 .na-mono { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
 .na-eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; color: ${C.faint}; }
-.na-input, .na-select { font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid ${C.rule}; border-radius: 3px; background: #fff; color: ${C.ink}; width: 100%; }
+.na-input, .na-select { font: inherit; font-size: 14px; padding: 9px 12px; border: 1px solid ${C.rule}; border-radius: 10px; background: #fff; color: ${C.ink}; width: 100%; }
 .na-input:focus, .na-select:focus, .na-btn:focus, .na-tab:focus, .na-acc:focus { outline: 2px solid ${C.accent}; outline-offset: 1px; }
-.na-btn { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px; cursor: pointer; border: 1px solid ${C.navy}; background: ${C.navy}; color: #fff; border-radius: 3px; }
-.na-btn:hover { background: #2A4B6B; }
-.na-btn-quiet { background: #fff; color: ${C.navy}; }
-.na-btn-quiet:hover { background: ${C.paper}; }
-.na-panel { background: ${C.panel}; border: 1px solid ${C.rule}; border-radius: 4px; }
-.na-tab { font: inherit; font-size: 13px; font-weight: 600; padding: 12px 4px; background: none; border: none; border-bottom: 3px solid transparent; color: rgba(255,255,255,0.65); cursor: pointer; white-space: nowrap; }
-.na-tab[aria-selected="true"] { color: #fff; border-bottom-color: #fff; }
-.na-tab:hover { color: #fff; }
+.na-btn { font: inherit; font-size: 13px; font-weight: 500; padding: 10px 18px; cursor: pointer; border: 1px solid ${C.ink}; background: ${C.ink}; color: ${C.panel}; border-radius: 999px; }
+.na-btn:hover { background: #4a4137; border-color: #4a4137; }
+.na-btn-quiet { background: transparent; color: #4a4137; border-color: ${C.rule}; }
+.na-btn-quiet:hover { background: #ece4d4; }
+.na-panel { background: ${C.panel}; border: 1px solid ${C.rule}; border-radius: 14px; box-shadow: 0 1px 2px rgba(28,24,20,.06), 0 8px 24px rgba(28,24,20,.08); }
+.na-tab { font: inherit; font-size: 14px; font-weight: 500; padding: 13px 12px; background: none; border: none; position: relative; color: ${C.faint}; cursor: pointer; white-space: nowrap; }
+.na-tab[aria-selected="true"] { color: ${C.ink}; font-weight: 600; }
+.na-tab[aria-selected="true"]::after { content: ''; position: absolute; bottom: -1px; left: 12px; right: 12px; height: 2px; background: ${C.accent}; }
+.na-tab:hover { color: ${C.ink}; }
 .na-acc { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 4px; background: none; border: none; cursor: pointer; font: inherit; font-size: 15px; font-weight: 600; color: ${C.ink}; text-align: left; }
 @media (prefers-reduced-motion: reduce) { .na-bar-fill { transition: none !important; } }
 `;
@@ -405,7 +432,7 @@ function Gauge({ label, value, target, unit, isLimit, dp = 0 }) {
           <span style={{ color, fontWeight: 500, marginLeft: 10 }}>{status}</span>
         </span>
       </div>
-      <div style={{ position: "relative", height: 10, background: "#EDF1F4", borderRadius: 2 }}>
+      <div style={{ position: "relative", height: 10, background: "#ece4d4", borderRadius: 2 }}>
         <div className="na-bar-fill" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(width / 130) * 100}%`, background: color, borderRadius: 2, transition: "width 0.5s ease" }} />
         <div style={{ position: "absolute", left: `${(100 / 130) * 100}%`, top: -3, bottom: -3, width: 2, background: C.navy }} />
       </div>
@@ -508,6 +535,271 @@ function BarcodeScanner({ onDetect, onClose }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Tab: Recipe builder — enter a recipe's ingredients, get nutrients */
+/*  per serving, save it, and log servings to today's intake.         */
+/* ------------------------------------------------------------------ */
+
+function RecipeBuilderTab({ recipes, setRecipes, onLogServings, storageKey }) {
+  const [name, setName] = useState("");
+  const [link, setLink] = useState("");
+  const [servings, setServings] = useState(4);
+  const [ings, setIngs] = useState([]);
+  const [q, setQ] = useState("");
+  const [src, setSrc] = useState("usda");
+  const [results, setResults] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [sel, setSel] = useState(null);
+  const [amt, setAmt] = useState(100);
+  const [unit, setUnit] = useState("g");
+  const [qty, setQty] = useState(1);
+  const [msg, setMsg] = useState("");
+  const [logCounts, setLogCounts] = useState({});
+
+  const localMatches = q ? FOODS.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6) : [];
+
+  const runSearch = async () => {
+    if (!q.trim()) return;
+    setBusy(true); setErr(""); setResults([]); setSel(null);
+    try {
+      const foods = await searchFdc(q.trim());
+      setResults(foods);
+      if (foods.length === 0) setErr("No matches found.");
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+
+  const addIngredient = () => {
+    if (!sel) return;
+    let mult, label;
+    if (sel.per100g) {
+      const u = UNITS[unit];
+      const g = (Number(amt) || 100) * u.grams;
+      mult = g / 100;
+      label = unit === "g" ? `${Math.round(g)} g` : `${amt} ${u.label} (~${Math.round(g)} g)`;
+    } else {
+      mult = Number(qty) || 1;
+      label = `${mult} × ${sel.serving}`;
+    }
+    setIngs(l => [...l, { food: sel, mult, label, id: Date.now() }]);
+    setSel(null); setQ(""); setAmt(100); setUnit("g"); setQty(1); setResults([]);
+  };
+
+  const totals = useMemo(() => {
+    const t = { ...ZERO };
+    for (const i of ings) for (const k of KEYS) t[k] += (i.food[k] || 0) * i.mult;
+    return t;
+  }, [ings]);
+
+  const n = Math.max(1, Number(servings) || 1);
+  const per = {};
+  for (const k of KEYS) per[k] = totals[k] / n;
+
+  const saveRecipe = async () => {
+    if (!name.trim() || ings.length === 0) { setMsg("Give the recipe a name and at least one ingredient."); return; }
+    const food = { ...per, name: name.trim(), serving: "1 serving", isRecipe: true };
+    const next = { ...recipes, [name.trim()]: { name: name.trim(), servings: n, food, link: link.trim() || null, ingredients: ings.map(i => `${i.food.name} — ${i.label}`) } };
+    setRecipes(next);
+    const where = await saveStore(storageKey, next);
+    setMsg(where === "memory" ? "Recipe saved for this session only." : `Saved "${name.trim()}".`);
+    setName(""); setLink(""); setIngs([]); setServings(4);
+    setTimeout(() => setMsg(""), 4000);
+  };
+
+  const deleteRecipe = async (rname) => {
+    const next = { ...recipes };
+    delete next[rname];
+    setRecipes(next);
+    await saveStore(storageKey, next);
+  };
+
+  const savedList = Object.values(recipes);
+
+  const perRow = (label, v, unitLabel, dp = 0) => (
+    <tr style={{ borderTop: `1px solid ${C.rule}` }}>
+      <td style={{ padding: "6px 4px" }}>{label}</td>
+      <td className="na-mono" style={{ padding: "6px 4px", textAlign: "right" }}>{v.toFixed(dp)} {unitLabel}</td>
+    </tr>
+  );
+
+  return (
+    <>
+      <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
+        <SectionHead title="Recipe builder" sub="Add a homemade dish's ingredients to compute its nutrients per serving. Save it once, then log servings from the list below." />
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 16 }}>
+          <Field label="Recipe name">
+            <input className="na-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Mom's lentil soup" />
+          </Field>
+          <Field label="Servings the recipe makes">
+            <input className="na-input" type="number" min="1" value={servings} onChange={e => setServings(e.target.value)} />
+          </Field>
+          <Field label="Ingredient source">
+            <select className="na-select" value={src} onChange={e => { setSrc(e.target.value); setSel(null); setResults([]); setErr(""); }}>
+              <option value="usda">USDA FoodData Central</option>
+              <option value="local">Built-in quick list</option>
+            </select>
+          </Field>
+          <Field label="Link to recipe page (optional)" note="Open a recipe on Citrus&Spice, tap Copy Link, and paste it here.">
+            <input className="na-input" type="url" value={link} onChange={e => setLink(e.target.value)} placeholder="https://…#recipe-…" />
+          </Field>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ flex: "1 1 200px", position: "relative" }}>
+            <Field label="Ingredient">
+              <input className="na-input" value={sel ? sel.name : q} placeholder="e.g. lentils, olive oil…"
+                onChange={e => { setSel(null); setQ(e.target.value); }}
+                onKeyDown={e => { if (e.key === "Enter" && src === "usda") runSearch(); }} />
+            </Field>
+            {src === "local" && localMatches.length > 0 && !sel && (
+              <ul style={{ position: "absolute", zIndex: 5, left: 0, right: 0, top: "100%", margin: 0, padding: 0, listStyle: "none", background: "#fff", border: `1px solid ${C.rule}`, borderTop: "none", boxShadow: "0 6px 16px rgba(24,36,48,0.12)" }}>
+                {localMatches.map(f => (
+                  <li key={f.name}>
+                    <button onClick={() => { setSel(f); setQ(""); }}
+                      style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 10px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
+                      <span>{f.name}</span>
+                      <span className="na-mono" style={{ color: C.faint, fontSize: 12 }}>{f.serving}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {src === "usda" && (
+            <button className="na-btn na-btn-quiet" onClick={runSearch} disabled={busy || !q.trim()} style={{ opacity: busy || !q.trim() ? 0.5 : 1 }}>
+              {busy ? "Searching…" : "Search"}
+            </button>
+          )}
+          <div style={{ width: 190 }}>
+            {sel && sel.per100g ? (
+              <Field label="Amount">
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input className="na-input" type="number" min="0" step="any" value={amt} onChange={e => setAmt(e.target.value)} />
+                  <select className="na-select" style={{ width: 82 }} value={unit} onChange={e => setUnit(e.target.value)}>
+                    {Object.entries(UNITS).map(([k, u]) => <option key={k} value={k}>{u.label}</option>)}
+                  </select>
+                </div>
+              </Field>
+            ) : (
+              <Field label="Servings of item">
+                <input className="na-input" type="number" min="0.25" step="0.25" value={qty} onChange={e => setQty(e.target.value)} />
+              </Field>
+            )}
+          </div>
+          <button className="na-btn" onClick={addIngredient} disabled={!sel} style={{ opacity: sel ? 1 : 0.45 }}>
+            Add ingredient
+          </button>
+        </div>
+
+        {err && <p role="alert" style={{ marginTop: 12, marginBottom: 0, fontSize: 13, color: C.high }}>{err}</p>}
+
+        {results.length > 0 && !sel && (
+          <ul style={{ listStyle: "none", margin: "12px 0 0", padding: 0, border: `1px solid ${C.rule}`, borderRadius: 3, maxHeight: 220, overflowY: "auto" }}>
+            {results.map((f, i) => (
+              <li key={i} style={{ borderTop: i ? `1px solid ${C.rule}` : "none" }}>
+                <button onClick={() => { setSel(f); setResults([]); }}
+                  style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "10px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
+                  <span>{f.name}</span>
+                  <span className="na-mono" style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}>{Math.round(f.kcal)} kcal / 100 g</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {ings.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, marginTop: 20 }}>
+            <div>
+              <h3 className="na-eyebrow" style={{ margin: "0 0 6px" }}>Ingredients</h3>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <tbody>
+                  {ings.map(i => (
+                    <tr key={i.id} style={{ borderTop: `1px solid ${C.rule}` }}>
+                      <td style={{ padding: "7px 4px" }}>{i.food.name} <span style={{ color: C.faint, fontSize: 12 }}>({i.label})</span></td>
+                      <td style={{ padding: "7px 4px", textAlign: "right" }}>
+                        <button onClick={() => setIngs(l => l.filter(x => x.id !== i.id))}
+                          aria-label={`Remove ${i.food.name}`}
+                          style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 13 }}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <h3 className="na-eyebrow" style={{ margin: "0 0 6px" }}>Per serving ({n} servings)</h3>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <tbody>
+                  {perRow("Energy", per.kcal, "kcal")}
+                  {perRow("Protein", per.protein, "g", 1)}
+                  {perRow("Carbohydrate", per.carb, "g", 1)}
+                  {perRow("Fat", per.fat, "g", 1)}
+                  {perRow("Fiber", per.fiber, "g", 1)}
+                  {perRow("Calcium", per.calcium, "mg")}
+                  {perRow("Iron", per.iron, "mg", 1)}
+                  {perRow("Potassium", per.potassium, "mg")}
+                  {perRow("Sodium", per.sodium, "mg")}
+                  {perRow("Vitamin C", per.vitC, "mg")}
+                  {perRow("Vitamin D", per.vitD, "mcg", 1)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 18 }}>
+          <button className="na-btn" onClick={saveRecipe}>Save recipe</button>
+          {msg && <span className="na-mono" style={{ fontSize: 12.5, color: C.ok }}>{msg}</span>}
+        </div>
+      </section>
+
+      <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
+        <SectionHead title="Saved recipes" sub="Log servings straight to today's intake report." />
+        {savedList.length === 0 ? (
+          <p style={{ fontSize: 13.5, color: C.faint, margin: 0 }}>No saved recipes yet — build one above.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 12 }}>
+            {savedList.map(r => (
+              <div key={r.name} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 3, padding: "12px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
+                  <h3 className="na-serif" style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                    {r.name}
+                    {r.link && (
+                      <a href={r.link} target="_top" rel="noopener"
+                        style={{ marginLeft: 10, fontSize: 12.5, fontFamily: "'Inter', sans-serif", fontWeight: 500, color: C.accent, textDecoration: "none", borderBottom: `1px solid ${C.accent}` }}>
+                        View recipe ↗
+                      </a>
+                    )}
+                  </h3>
+                  <span className="na-mono" style={{ fontSize: 12, color: C.faint }}>
+                    {Math.round(r.food.kcal)} kcal · {r.food.protein.toFixed(0)} g protein / serving
+                  </span>
+                </div>
+                <p style={{ margin: "6px 0 10px", fontSize: 12.5, color: C.faint, lineHeight: 1.5 }}>{r.ingredients.join(" · ")}</p>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <input className="na-input" type="number" min="0.5" step="0.5" style={{ width: 80 }}
+                    value={logCounts[r.name] ?? 1}
+                    onChange={e => setLogCounts(s => ({ ...s, [r.name]: e.target.value }))}
+                    aria-label={`Servings of ${r.name} to log`} />
+                  <button className="na-btn" onClick={() => onLogServings(r.food, Number(logCounts[r.name]) || 1)}>
+                    Log serving(s)
+                  </button>
+                  <button className="na-btn na-btn-quiet" onClick={() => deleteRecipe(r.name)} style={{ color: C.high, borderColor: C.rule }}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Tab: Nutrient reference                                           */
 /* ------------------------------------------------------------------ */
 
@@ -557,7 +849,7 @@ function ReferenceTab({ targets }) {
 /*  Tab: History                                                      */
 /* ------------------------------------------------------------------ */
 
-function HistoryTab({ history }) {
+function HistoryTab({ history, onDeleteDay }) {
   const [windowDays, setWindowDays] = useState(7);
   const dates = Object.keys(history).sort().reverse();
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - windowDays);
@@ -593,8 +885,8 @@ function HistoryTab({ history }) {
 
       {inWindow.length === 0 ? (
         <p style={{ fontSize: 13.5, color: C.faint }}>
-          No saved days in this window yet. On the Nutrition report tab, log your food and
-          press "Save day to history" — trends appear here once you have a few days recorded.
+          No days in this window yet. Days save automatically as you log food on the
+          Nutrition report tab — trends appear here once you have a few days recorded.
         </p>
       ) : (
         <>
@@ -613,7 +905,7 @@ function HistoryTab({ history }) {
                     {s.lowDays > 0 && <span style={{ color: C.low, marginLeft: 10 }}>low on {s.lowDays} of {inWindow.length} days</span>}
                   </span>
                 </div>
-                <div style={{ position: "relative", height: 8, background: "#EDF1F4", borderRadius: 2 }}>
+                <div style={{ position: "relative", height: 8, background: "#ece4d4", borderRadius: 2 }}>
                   <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(s.avg, 130) / 1.3}%`, background: color, borderRadius: 2 }} />
                   <div style={{ position: "absolute", left: `${100 / 1.3}%`, top: -2, bottom: -2, width: 2, background: C.navy }} />
                 </div>
@@ -634,6 +926,12 @@ function HistoryTab({ history }) {
                   <td className="na-mono" style={{ padding: "7px 4px" }}>{d}</td>
                   <td className="na-mono" style={{ padding: "7px 4px", textAlign: "right", color: C.faint }}>
                     {Math.round(history[d].totals.kcal)} kcal · {TRACKED.filter(k => (history[d].pct[k] ?? 0) < 80).length} nutrient(s) low
+                  </td>
+                  <td style={{ padding: "7px 4px", textAlign: "right", width: 60 }}>
+                    <button onClick={() => onDeleteDay(d)} aria-label={`Delete ${d} from history`}
+                      style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 12.5 }}>
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -778,11 +1076,12 @@ export default function NutritionAssessment() {
   });
   const [query, setQuery] = useState("");
   const [qty, setQty] = useState(1);
-  const [grams, setGrams] = useState(100);
+  const [amount, setAmount] = useState(100);
+  const [amountUnit, setAmountUnit] = useState("g");
   const [selected, setSelected] = useState(null);
   const [log, setLog] = useState([]);
   const [source, setSource] = useState("usda");
-  const [apiKey, setApiKey] = useState("");
+  const [profileOpen, setProfileOpen] = useState(true);
   const [usdaResults, setUsdaResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
@@ -791,9 +1090,68 @@ export default function NutritionAssessment() {
   const [scanStatus, setScanStatus] = useState("");
   const [custom, setCustom] = useState({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
   const [history, setHistory] = useState({});
+  const [recipes, setRecipes] = useState({});
   const [saveMsg, setSaveMsg] = useState("");
+  const [users, setUsers] = useState(["Me"]);
+  const [currentUser, setCurrentUser] = useState("Me");
+  const [newUser, setNewUser] = useState("");
+  const [addingUser, setAddingUser] = useState(false);
+  const hydrated = useRef(false);
 
-  useEffect(() => { loadHistory().then(setHistory); }, []);
+  const todayKey = () => new Date().toISOString().slice(0, 10);
+
+  // Load the person list once.
+  useEffect(() => {
+    loadStore(UKEY).then(u => {
+      if (u && Array.isArray(u.list) && u.list.length) {
+        setUsers(u.list);
+        setCurrentUser(u.list[0]);
+      }
+    });
+  }, []);
+
+  // Load everything for the selected person; restore today's log so
+  // items logged earlier in the day accumulate instead of starting over.
+  useEffect(() => {
+    hydrated.current = false;
+    (async () => {
+      const [h, r, p] = await Promise.all([
+        loadStore(userKey(HKEY, currentUser)),
+        loadStore(userKey(RKEY, currentUser)),
+        loadStore(userKey(PKEY, currentUser)),
+      ]);
+      setHistory(h || {});
+      setRecipes(r || {});
+      setProfile(p && p.activity ? p : { age: "", sex: "", weight: "", weightUnit: "lb", height: "", heightUnit: "in", activity: "light" });
+      const today = (h || {})[todayKey()];
+      setLog(today && Array.isArray(today.items)
+        ? today.items.map((it, i) => ({ ...it, id: it.id || Date.now() + i }))
+        : []);
+      hydrated.current = true;
+    })();
+  }, [currentUser]);
+
+  // Auto-save the profile per person (biometrics never leave the device).
+  useEffect(() => {
+    if (!hydrated.current) return;
+    const t = setTimeout(() => saveStore(userKey(PKEY, currentUser), profile), 600);
+    return () => clearTimeout(t);
+  }, [profile, currentUser]);
+
+  const addUser = async () => {
+    const name = newUser.trim();
+    if (!name || users.includes(name)) { setAddingUser(false); setNewUser(""); return; }
+    const list = [...users, name];
+    setUsers(list);
+    await saveStore(UKEY, { list });
+    setNewUser(""); setAddingUser(false);
+    setCurrentUser(name);
+  };
+
+  const logRecipeServings = (food, count) => {
+    setLog(l => [...l, { food, qty: count, label: `${count} serving${count !== 1 ? "s" : ""}`, id: Date.now() }]);
+    setTab("report");
+  };
 
   const targets = useMemo(() => computeTargets(profile), [profile]);
 
@@ -830,16 +1188,24 @@ export default function NutritionAssessment() {
 
   const addFood = () => {
     if (!selected) return;
-    const multiplier = selected.per100g ? (Number(grams) || 100) / 100 : (Number(qty) || 1);
-    setLog(l => [...l, { food: selected, qty: multiplier, id: Date.now() }]);
-    setSelected(null); setQuery(""); setQty(1); setGrams(100); setUsdaResults([]);
+    let multiplier, label = null;
+    if (selected.per100g) {
+      const u = UNITS[amountUnit];
+      const g = (Number(amount) || 100) * u.grams;
+      multiplier = g / 100;
+      label = amountUnit === "g" ? `${Math.round(g)} g` : `${amount} ${u.label}${u.approx ? ` (~${Math.round(g)} g)` : ` (${Math.round(g)} g)`}`;
+    } else {
+      multiplier = Number(qty) || 1;
+    }
+    setLog(l => [...l, { food: selected, qty: multiplier, label, id: Date.now() }]);
+    setSelected(null); setQuery(""); setQty(1); setAmount(100); setAmountUnit("g"); setUsdaResults([]);
   };
 
   const runUsdaSearch = async () => {
     if (!query.trim()) return;
     setSearching(true); setSearchError(""); setUsdaResults([]); setSelected(null);
     try {
-      const foods = await searchFdc(query.trim(), apiKey.trim());
+      const foods = await searchFdc(query.trim());
       setUsdaResults(foods);
       if (foods.length === 0) setSearchError("No matches found in FoodData Central.");
     } catch (err) {
@@ -851,9 +1217,9 @@ export default function NutritionAssessment() {
     setShowScanner(false);
     setScanStatus(`Looking up barcode ${code}…`);
     try {
-      const food = await lookupBarcode(code, apiKey.trim());
+      const food = await lookupBarcode(code);
       setSelected(food); setQuery(""); setUsdaResults([]);
-      setScanStatus(`Found: ${food.name}. Set the amount in grams, then add to log.`);
+      setScanStatus(`Found: ${food.name}. Set the amount, then add to log.`);
     } catch (err) {
       setScanStatus("");
       setSearchError(err.message + " Try the search box or a custom item.");
@@ -869,25 +1235,61 @@ export default function NutritionAssessment() {
     setShowCustom(false);
   };
 
-  const saveDay = async () => {
-    const today = new Date().toISOString().slice(0, 10);
-    const pct = {};
-    for (const k of [...TRACKED, "sodium"]) pct[k] = Math.round(pctOf(k));
-    const next = { ...history, [today]: { totals: { ...totals }, pct } };
+  // Auto-save today's log (with its items) whenever it changes. Because the
+  // log is restored on load, same-day sessions accumulate rather than overwrite.
+  useEffect(() => {
+    if (!hydrated.current) return;
+    const t = setTimeout(async () => {
+      const today = todayKey();
+      const next = { ...history };
+      if (log.length === 0) {
+        if (!next[today]) return;
+        delete next[today];
+      } else {
+        const pct = {};
+        for (const k of [...TRACKED, "sodium"]) pct[k] = Math.round(pctOf(k));
+        next[today] = {
+          totals: { ...totals },
+          pct,
+          items: log.map(({ food, qty, label }) => ({ food, qty, label: label || null })),
+        };
+      }
+      setHistory(next);
+      const where = await saveStore(userKey(HKEY, currentUser), next);
+      setSaveMsg(where === "memory" ? "Saved (this session only)" : "Auto-saved to today's history");
+      setTimeout(() => setSaveMsg(""), 2500);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [log, targets]); // eslint-disable-line
+
+  const updateItemQty = (id, raw) => {
+    const v = Number(raw);
+    if (!(v >= 0)) return;
+    setLog(l => l.map(item => {
+      if (item.id !== id) return item;
+      if (item.food.per100g) return { ...item, qty: v / 100, label: `${Math.round(v)} g` };
+      if (item.food.isRecipe) return { ...item, qty: v, label: `${v} serving${v !== 1 ? "s" : ""}` };
+      return { ...item, qty: v, label: null };
+    }));
+  };
+
+  const deleteHistoryDay = async (date) => {
+    const next = { ...history };
+    delete next[date];
     setHistory(next);
-    const where = await saveHistory(next);
-    setSaveMsg(where === "memory"
-      ? `Saved ${today} (this session only — no persistent storage available here).`
-      : `Saved ${today} to history.`);
-    setTimeout(() => setSaveMsg(""), 4000);
+    await saveStore(userKey(HKEY, currentUser), next);
+    if (date === todayKey()) setLog([]);
   };
 
   const fatKcal = totals.fat * 9, carbKcal = totals.carb * 4;
   const fatPct = totals.kcal ? (fatKcal / totals.kcal) * 100 : 0;
   const carbPct = totals.kcal ? (carbKcal / totals.kcal) * 100 : 0;
 
+  const embedded = typeof window !== "undefined" && window.self !== window.top;
+
   const TABS = [
     ["report", "Nutrition report"],
+    ["recipes", "My recipes"],
     ["reference", "Nutrient reference"],
     ["history", "History"],
     ["fitness", "Fitness"],
@@ -897,20 +1299,20 @@ export default function NutritionAssessment() {
     <div className="na-root">
       <style>{css}</style>
 
-      <header style={{ background: C.navy, color: "#fff", padding: "26px 20px 0" }}>
+      <header style={{ background: C.paper, borderBottom: `1px solid ${C.rule}`, padding: embedded ? "0 20px" : "18px 20px 0" }}>
         <div style={{ maxWidth: 860, margin: "0 auto" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div aria-hidden style={{ width: 44, height: 44, border: "2px solid rgba(255,255,255,0.85)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <span className="na-serif" style={{ fontSize: 19, fontWeight: 700 }}>Rx</span>
+          {!embedded && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span aria-hidden style={{ color: C.accent, fontSize: 22, display: "inline-block", transform: "rotate(-12deg)" }}>✺</span>
+              <div>
+                <h1 className="na-serif" style={{ margin: 0, fontSize: 24, fontWeight: 500, fontStyle: "italic", lineHeight: 1.15 }}>
+                  Citrus&Spice
+                </h1>
+                <div className="na-eyebrow" style={{ marginTop: 1 }}>Nutrition Tracker</div>
+              </div>
             </div>
-            <div>
-              <div className="na-eyebrow" style={{ color: "rgba(255,255,255,0.7)" }}>Dietary Reference Assessment</div>
-              <h1 className="na-serif" style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 700, lineHeight: 1.15 }}>
-                Daily Nutrient Intake Report
-              </h1>
-            </div>
-          </div>
-          <nav role="tablist" style={{ display: "flex", gap: 22, marginTop: 18, overflowX: "auto" }}>
+          )}
+          <nav role="tablist" style={{ display: "flex", gap: 4, marginTop: embedded ? 0 : 10, overflowX: "auto" }}>
             {TABS.map(([id, label]) => (
               <button key={id} role="tab" aria-selected={tab === id} className="na-tab" onClick={() => setTab(id)}>
                 {label}
@@ -923,15 +1325,57 @@ export default function NutritionAssessment() {
       <main style={{ maxWidth: 860, margin: "0 auto", padding: "26px 20px 40px", display: "grid", gap: 26 }}>
 
         {tab === "reference" && <ReferenceTab targets={targets} />}
-        {tab === "history" && <HistoryTab history={history} />}
+        {tab === "recipes" && <RecipeBuilderTab recipes={recipes} setRecipes={setRecipes} onLogServings={logRecipeServings} storageKey={userKey(RKEY, currentUser)} />}
+        {tab === "history" && <HistoryTab history={history} onDeleteDay={deleteHistoryDay} />}
         {tab === "fitness" && <FitnessTab profile={profile} />}
 
         {tab === "report" && (
           <>
+            {/* ---------- Person switcher ---------- */}
+            <section className="na-panel" style={{ padding: "14px 18px", display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ width: 180 }}>
+                <Field label="Logging for">
+                  <select className="na-select" value={currentUser}
+                    onChange={e => e.target.value === "__add" ? setAddingUser(true) : setCurrentUser(e.target.value)}>
+                    {users.map(u => <option key={u} value={u}>{u}</option>)}
+                    <option value="__add">+ Add person…</option>
+                  </select>
+                </Field>
+              </div>
+              {addingUser && (
+                <>
+                  <div style={{ width: 170 }}>
+                    <Field label="Nickname">
+                      <input className="na-input" value={newUser} onChange={e => setNewUser(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") addUser(); }} placeholder="e.g. Sam" />
+                    </Field>
+                  </div>
+                  <button className="na-btn" onClick={addUser}>Add</button>
+                  <button className="na-btn na-btn-quiet" onClick={() => { setAddingUser(false); setNewUser(""); }}>Cancel</button>
+                </>
+              )}
+              <p style={{ margin: 0, flex: "1 1 220px", fontSize: 11.5, color: C.faint, lineHeight: 1.5 }}>
+                Each person's log, history, recipes, and profile are kept separate and stay
+                on this device. Nicknames are optional — "Me" works fine, and all profile
+                fields remain optional.
+              </p>
+            </section>
             {/* ---------- 01 Profile ---------- */}
             <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
-              <SectionHead num="01" title="Subject profile" sub="Optional. Unanswered fields fall back to general adult reference values." />
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 14, borderBottom: `2px solid ${C.navy}`, paddingBottom: 10, marginBottom: profileOpen ? 18 : 0 }}>
+                <span className="na-mono" style={{ fontSize: 13, color: C.accent, fontWeight: 500 }}>01</span>
+                <div style={{ flex: 1 }}>
+                  <h2 className="na-serif" style={{ margin: 0, fontSize: 21, fontWeight: 700, color: C.navy }}>Subject profile</h2>
+                  {profileOpen && <p style={{ margin: "3px 0 0", fontSize: 13, color: C.faint }}>Optional. Unanswered fields fall back to general adult reference values.</p>}
+                </div>
+                <button className="na-btn na-btn-quiet" aria-expanded={profileOpen}
+                  onClick={() => setProfileOpen(o => !o)} style={{ padding: "5px 12px", flexShrink: 0 }}>
+                  {profileOpen ? "Hide" : "Show"}
+                </button>
+              </div>
+              {profileOpen ? (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
                 <Field label="Age (years)">
                   <input className="na-input" type="number" min="18" max="120" value={profile.age} onChange={set("age")} placeholder="—" />
                 </Field>
@@ -964,9 +1408,15 @@ export default function NutritionAssessment() {
                   </select>
                 </Field>
               </div>
-              <p className="na-mono" style={{ fontSize: 12, color: C.faint, marginTop: 16, marginBottom: 0 }}>
-                Energy target basis: {targets.kcalBasis} → {targets.kcal.toLocaleString()} kcal/day
-              </p>
+                  <p className="na-mono" style={{ fontSize: 12, color: C.faint, marginTop: 16, marginBottom: 0 }}>
+                    Energy target basis: {targets.kcalBasis} → {targets.kcal.toLocaleString()} kcal/day
+                  </p>
+                </>
+              ) : (
+                <p className="na-mono" style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
+                  Targets in effect: {targets.kcal.toLocaleString()} kcal · protein {targets.protein} g · fiber {targets.fiber} g
+                </p>
+              )}
             </section>
 
             {/* ---------- 02 Intake log ---------- */}
@@ -983,13 +1433,6 @@ export default function NutritionAssessment() {
                     </select>
                   </Field>
                 </div>
-                {source === "usda" && (
-                  <div style={{ flex: "1 1 200px" }}>
-                    <Field label="USDA API key (optional)" note="Defaults to DEMO_KEY (limited). Free keys at api.data.gov/signup">
-                      <input className="na-input" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="DEMO_KEY" />
-                    </Field>
-                  </div>
-                )}
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -1022,10 +1465,15 @@ export default function NutritionAssessment() {
                     {searching ? "Searching…" : "Search USDA"}
                   </button>
                 )}
-                <div style={{ width: 110 }}>
+                <div style={{ width: 190 }}>
                   {selected && selected.per100g ? (
-                    <Field label="Amount (g)">
-                      <input className="na-input" type="number" min="1" step="1" value={grams} onChange={e => setGrams(e.target.value)} />
+                    <Field label="Amount" note={UNITS[amountUnit].approx ? "Volume units are approximate — density varies by food." : null}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input className="na-input" type="number" min="0" step="any" value={amount} onChange={e => setAmount(e.target.value)} />
+                        <select className="na-select" style={{ width: 82 }} value={amountUnit} onChange={e => setAmountUnit(e.target.value)}>
+                          {Object.entries(UNITS).map(([k, u]) => <option key={k} value={k}>{u.label}</option>)}
+                        </select>
+                      </div>
                     </Field>
                   ) : (
                     <Field label="Servings">
@@ -1094,7 +1542,14 @@ export default function NutritionAssessment() {
                       <tr key={item.id} style={{ borderTop: `1px solid ${C.rule}` }}>
                         <td style={{ padding: "8px 4px" }}>{item.food.name} <span style={{ color: C.faint, fontSize: 12 }}>({item.food.serving})</span></td>
                         <td className="na-mono" style={{ padding: "8px 4px", whiteSpace: "nowrap" }}>
-                          {item.food.per100g ? `${Math.round(item.qty * 100)} g` : item.qty}
+                          <input className="na-input" type="number" min="0" step="any"
+                            value={item.food.per100g ? Math.round(item.qty * 100) : item.qty}
+                            onChange={e => updateItemQty(item.id, e.target.value)}
+                            aria-label={`Amount of ${item.food.name}`}
+                            style={{ width: 66, padding: "4px 6px", fontSize: 12.5, textAlign: "right" }} />
+                          <span style={{ marginLeft: 6, fontSize: 11.5, color: C.faint }}>
+                            {item.food.per100g ? "g" : item.food.isRecipe ? "serv." : "× serving"}
+                          </span>
                         </td>
                         <td className="na-mono" style={{ padding: "8px 4px", textAlign: "right" }}>{Math.round(item.food.kcal * item.qty)}</td>
                         <td style={{ padding: "8px 4px", textAlign: "right" }}>
@@ -1146,7 +1601,7 @@ export default function NutritionAssessment() {
                   <Gauge label="Sodium" value={totals.sodium} target={targets.sodiumLimit} unit="mg" isLimit />
 
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "16px 0" }}>
-                    <button className="na-btn" onClick={saveDay}>Save day to history</button>
+                    <span style={{ fontSize: 12.5, color: C.faint }}>Days save automatically as you log — see the History tab.</span>
                     {saveMsg && <span className="na-mono" style={{ fontSize: 12.5, color: C.ok }}>{saveMsg}</span>}
                   </div>
 
