@@ -339,6 +339,7 @@ const HKEY = "nutrition-history-v1";
 const RKEY = "nutrition-recipes-v1";
 const PKEY = "nutrition-profile-v1";
 const UKEY = "nutrition-users-v1";
+const BKEY = "nutrition-barcodes-v1";
 
 // Namespace stored data per person so several people can log on one device.
 // "Me" is the default, unnamed profile. Keys must not contain whitespace.
@@ -1103,6 +1104,7 @@ export default function NutritionAssessment() {
   const [custom, setCustom] = useState({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
   const [history, setHistory] = useState({});
   const [recipes, setRecipes] = useState({});
+  const [barcodes, setBarcodes] = useState({});
   const [saveMsg, setSaveMsg] = useState("");
   const [users, setUsers] = useState(["Me"]);
   const [currentUser, setCurrentUser] = useState("Me");
@@ -1127,13 +1129,15 @@ export default function NutritionAssessment() {
   useEffect(() => {
     hydrated.current = false;
     (async () => {
-      const [h, r, p] = await Promise.all([
+      const [h, r, p, b] = await Promise.all([
         loadStore(userKey(HKEY, currentUser)),
         loadStore(userKey(RKEY, currentUser)),
         loadStore(userKey(PKEY, currentUser)),
+        loadStore(userKey(BKEY, currentUser)),
       ]);
       setHistory(h || {});
       setRecipes(r || {});
+      setBarcodes(b || {});
       setProfile(p && p.activity ? p : { age: "", sex: "", weight: "", weightUnit: "lb", height: "", heightUnit: "in", activity: "light" });
       const today = (h || {})[todayKey()];
       setLog(today && Array.isArray(today.items)
@@ -1270,15 +1274,34 @@ export default function NutritionAssessment() {
 
   const handleBarcode = async (code) => {
     setShowScanner(false);
+    const known = barcodes[code];
+    if (known) {
+      setSelected(known.food); setQuery(""); setUsdaResults([]);
+      setScanStatus(`From your scanned items: ${known.food.name}. Set the amount, then add to log.`);
+      const next = { ...barcodes, [code]: { ...known, lastUsed: Date.now() } };
+      setBarcodes(next);
+      saveStore(userKey(BKEY, currentUser), next);
+      return;
+    }
     setScanStatus(`Looking up barcode ${code}…`);
     try {
       const food = await lookupBarcode(code);
       setSelected(food); setQuery(""); setUsdaResults([]);
-      setScanStatus(`Found: ${food.name}. Set the amount, then add to log.`);
+      setScanStatus(`Found: ${food.name}. Set the amount, then add to log. Saved to your scanned items for next time.`);
+      const next = { ...barcodes, [code]: { code, food, lastUsed: Date.now() } };
+      setBarcodes(next);
+      await saveStore(userKey(BKEY, currentUser), next);
     } catch (err) {
       setScanStatus("");
       setSearchError(err.message + " Try the search box or a custom item.");
     }
+  };
+
+  const deleteBarcode = async (code) => {
+    const next = { ...barcodes };
+    delete next[code];
+    setBarcodes(next);
+    await saveStore(userKey(BKEY, currentUser), next);
   };
 
   const addCustom = () => {
@@ -1477,10 +1500,38 @@ export default function NutritionAssessment() {
                       <option value="usda">USDA FoodData Central</option>
                       <option value="local">Built-in quick list</option>
                       <option value="recipes">My saved recipes</option>
+                      <option value="scans">Scanned items</option>
                     </select>
                   </Field>
                 </div>
               </div>
+
+              {source === "scans" && (
+                Object.keys(barcodes).length === 0 ? (
+                  <p style={{ margin: "4px 0 12px", fontSize: 13, color: C.faint }}>
+                    No scanned items yet. Products you scan are remembered here so
+                    repeat purchases are one tap — no camera or lookup needed.
+                  </p>
+                ) : (
+                  <ul style={{ listStyle: "none", margin: "4px 0 14px", padding: 0, border: `1px solid ${C.rule}`, borderRadius: 10, maxHeight: 280, overflowY: "auto" }}>
+                    {Object.values(barcodes).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map((entry, i) => (
+                      <li key={entry.code} style={{ display: "flex", alignItems: "center", gap: 6, borderTop: i ? `1px solid ${C.rule}` : "none" }}>
+                        <button onClick={() => { setSelected(entry.food); setQuery(""); setUsdaResults([]); }}
+                          style={{ flex: 1, display: "flex", justifyContent: "space-between", gap: 8, padding: "10px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
+                          <span>{entry.food.name}</span>
+                          <span className="na-mono" style={{ color: C.faint, fontSize: 11.5, whiteSpace: "nowrap" }}>
+                            {Math.round(entry.food.kcal)} kcal / 100 g · {entry.code}
+                          </span>
+                        </button>
+                        <button onClick={() => deleteBarcode(entry.code)} aria-label={`Delete ${entry.food.name} from scanned items`}
+                          style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 12.5, padding: "10px 12px" }}>
+                          Delete
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              )}
 
               {source === "recipes" && (
                 Object.keys(recipes).length === 0 ? (
