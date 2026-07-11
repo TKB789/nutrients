@@ -170,7 +170,7 @@ async function lookupBarcode(code) {
 /* ------------------------------------------------------------------ */
 
 const LABELS = {
-  kcal: "Energy", protein: "Protein", fiber: "Dietary fiber", calcium: "Calcium",
+  kcal: "Energy", protein: "Protein", carb: "Carbohydrate", fat: "Fat", fiber: "Dietary fiber", calcium: "Calcium",
   iron: "Iron", potassium: "Potassium", vitC: "Vitamin C", vitD: "Vitamin D", sodium: "Sodium",
 };
 
@@ -182,6 +182,18 @@ const NUTRIENT_INFO = [
     role: "Builds and repairs muscle and tissue, forms enzymes and hormones, and supports immune function. Needs rise with activity, illness, and age.",
     deficiency: "Muscle loss, slow wound healing, frequent infections, brittle hair and nails, swelling (edema) in severe cases.",
     sources: "Poultry, fish, eggs, dairy, Greek yogurt, tofu, lentils, beans, and nuts.",
+  },
+  {
+    key: "carb",
+    role: "The body's primary fuel, especially for the brain and for muscles during exercise. Quality matters as much as quantity — whole grains, fruit, and legumes digest slowly, while refined starches and sugars spike blood sugar.",
+    deficiency: "Very low intake causes low energy, poor exercise performance, irritability, and constipation when fiber drops with it. Chronically high refined-carb intake is the more common problem.",
+    sources: "Whole grains (oats, brown rice, whole-wheat bread), fruit, starchy vegetables, beans, lentils, and dairy.",
+  },
+  {
+    key: "fat",
+    role: "Required for hormone production, absorbing vitamins A, D, E, and K, building cell membranes, and satiety. Unsaturated fats should make up most of it.",
+    deficiency: "Dry skin and hair, constant hunger, poor absorption of fat-soluble vitamins, and disrupted hormones with prolonged very-low-fat eating.",
+    sources: "Olive oil, avocado, nuts, seeds, and fatty fish. Keep saturated fat (butter, fatty meat, cream) to a modest share.",
   },
   {
     key: "fiber",
@@ -439,6 +451,61 @@ function Gauge({ label, value, target, unit, isLimit, dp = 0 }) {
         <div className="na-bar-fill" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(width / 130) * 100}%`, background: color, borderRadius: 2, transition: "width 0.5s ease" }} />
         <div style={{ position: "absolute", left: `${(100 / 130) * 100}%`, top: -3, bottom: -3, width: 2, background: C.navy }} />
       </div>
+    </div>
+  );
+}
+
+
+function MacroSummary({ totals, targets }) {
+  const kcal = totals.kcal;
+  const remaining = Math.round(targets.kcal - kcal);
+  const pctE = (g, kcalPerG) => kcal > 0 ? ((g * kcalPerG) / kcal) * 100 : 0;
+  const tiles = [
+    { label: "Carbs", grams: totals.carb, p: pctE(totals.carb, 4), band: [45, 65],
+      targetText: `${Math.round(targets.kcal * 0.45 / 4)}–${Math.round(targets.kcal * 0.65 / 4)} g` },
+    { label: "Protein", grams: totals.protein, p: pctE(totals.protein, 4), band: [10, 35],
+      targetText: `RDA ≥ ${targets.protein} g` },
+    { label: "Fat", grams: totals.fat, p: pctE(totals.fat, 9), band: [20, 35],
+      targetText: `${Math.round(targets.kcal * 0.20 / 9)}–${Math.round(targets.kcal * 0.35 / 9)} g` },
+  ];
+  return (
+    <div style={{ background: C.paper, border: `1px solid ${C.rule}`, borderRadius: 12, padding: "16px 18px", margin: "10px 0 8px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <div className="na-eyebrow">Energy</div>
+          <div className="na-mono" style={{ fontSize: 27, fontWeight: 500, lineHeight: 1.2 }}>
+            {Math.round(kcal).toLocaleString()}
+            <span style={{ fontSize: 14, color: C.faint }}> / {targets.kcal.toLocaleString()} kcal</span>
+          </div>
+        </div>
+        <div className="na-mono" style={{ fontSize: 13, color: remaining >= 0 ? C.faint : C.high }}>
+          {remaining >= 0 ? `${remaining.toLocaleString()} kcal remaining` : `${Math.abs(remaining).toLocaleString()} kcal over target`}
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16, marginTop: 16 }}>
+        {tiles.map(t => {
+          const inBand = t.p >= t.band[0] && t.p <= t.band[1];
+          const color = kcal === 0 ? C.faint : inBand ? C.ok : C.low;
+          return (
+            <div key={t.label}>
+              <div className="na-eyebrow">{t.label}</div>
+              <div className="na-mono" style={{ fontSize: 21, fontWeight: 500 }}>{t.grams.toFixed(0)} g</div>
+              <div style={{ position: "relative", height: 8, background: "#ece4d4", borderRadius: 4, margin: "7px 0 5px" }}>
+                <div style={{ position: "absolute", left: `${t.band[0]}%`, width: `${t.band[1] - t.band[0]}%`, top: 0, bottom: 0, background: C.rule, borderRadius: 4 }} />
+                <div style={{ position: "absolute", left: `calc(${Math.min(Math.max(t.p, 1), 99)}% - 2px)`, top: -2, bottom: -2, width: 4, background: color, borderRadius: 2 }} />
+              </div>
+              <div style={{ fontSize: 11.5, color: C.faint, lineHeight: 1.5 }}>
+                <span style={{ color, fontWeight: 600 }}>{t.p.toFixed(0)}% of energy</span> · band {t.band[0]}–{t.band[1]}% · {t.targetText}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p style={{ margin: "14px 0 0", fontSize: 11, color: C.faint, lineHeight: 1.5 }}>
+        Shaded bands are the Acceptable Macronutrient Distribution Ranges (AMDR) from the
+        Dietary Reference Intakes — the framework dietitians use to assess macro balance.
+        The marker shows where today's intake falls.
+      </p>
     </div>
   );
 }
@@ -750,6 +817,8 @@ function ReferenceTab({ targets }) {
   const [open, setOpen] = useState(null);
   const targetFor = (k) => k === "sodium" ? `limit ${targets.sodiumLimit.toLocaleString()} mg` :
     k === "protein" ? `${targets.protein} g` : k === "fiber" ? `${targets.fiber} g` :
+    k === "carb" ? `${Math.round(targets.kcal * 0.45 / 4)}–${Math.round(targets.kcal * 0.65 / 4)} g` :
+    k === "fat" ? `${Math.round(targets.kcal * 0.20 / 9)}–${Math.round(targets.kcal * 0.35 / 9)} g` :
     k === "calcium" ? `${targets.calcium} mg` : k === "iron" ? `${targets.iron} mg` :
     k === "potassium" ? `${targets.potassium.toLocaleString()} mg` : k === "vitC" ? `${targets.vitC} mg` :
     k === "vitD" ? `${targets.vitD} mcg` : "";
@@ -1267,10 +1336,6 @@ export default function NutritionAssessment() {
     if (date === todayKey()) setLog([]);
   };
 
-  const fatKcal = totals.fat * 9, carbKcal = totals.carb * 4;
-  const fatPct = totals.kcal ? (fatKcal / totals.kcal) * 100 : 0;
-  const carbPct = totals.kcal ? (carbKcal / totals.kcal) * 100 : 0;
-
   const TABS = [
     ["report", "Report"],
     ["reference", "Nutrients"],
@@ -1606,15 +1671,9 @@ export default function NutritionAssessment() {
               ) : (
                 <>
                   <div className="na-eyebrow" style={{ margin: "4px 0 2px" }}>Energy & macronutrients</div>
-                  <Gauge label="Energy" value={totals.kcal} target={targets.kcal} unit="kcal" />
-                  <Gauge label="Protein" value={totals.protein} target={targets.protein} unit="g" dp={1} />
+                  <MacroSummary totals={totals} targets={targets} />
+                  <Gauge label="Protein (vs RDA)" value={totals.protein} target={targets.protein} unit="g" dp={1} />
                   <Gauge label="Dietary fiber" value={totals.fiber} target={targets.fiber} unit="g" dp={1} />
-                  <div style={{ padding: "12px 0", borderBottom: `1px solid ${C.rule}`, fontSize: 13.5 }}>
-                    <span style={{ fontWeight: 600 }}>Energy distribution</span>
-                    <span className="na-mono" style={{ color: C.faint, marginLeft: 12, fontSize: 12.5 }}>
-                      Carbohydrate {carbPct.toFixed(0)}% (target 45–65%) · Fat {fatPct.toFixed(0)}% (target 20–35%)
-                    </span>
-                  </div>
 
                   <div className="na-eyebrow" style={{ margin: "18px 0 2px" }}>Micronutrients</div>
                   <Gauge label="Calcium" value={totals.calcium} target={targets.calcium} unit="mg" />
