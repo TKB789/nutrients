@@ -34,7 +34,7 @@ function computeTargets(p) {
   const vitC = female ? 75 : sex === "male" ? 90 : 82;
   const vitD = age && age >= 70 ? 20 : 15;
 
-  return { kcal, kcalBasis, protein, fiber, iron, calcium, potassium, vitC, vitD, sodiumLimit: 2300 };
+  return { kcal, kcalBasis, protein, fiber, iron, calcium, potassium, vitC, vitD, sodiumLimit: 2300, sex };
 }
 
 /* ------------------------------------------------------------------ */
@@ -360,8 +360,23 @@ const NUTRIENT_INFO = [
 /*  matched by name keyword so searched & scanned foods auto-credit.  */
 /* ------------------------------------------------------------------ */
 
+const PRESET_INFO = {
+  omega3: { role: "Long-chain omega-3 fats (EPA and DHA) support heart rhythm, triglyceride levels, and brain and eye function.", deficiency: "Low intake is linked to poorer cardiovascular markers; there's no classic deficiency syndrome for most people.", sources: "Salmon, sardines, mackerel, herring, anchovies; walnuts and flax provide the plant form (ALA)." },
+  magnesium: { role: "Involved in 300+ enzyme reactions — muscle and nerve function, blood sugar, blood pressure, and bone.", deficiency: "Muscle cramps, fatigue, irritability; low levels are common with low vegetable and whole-grain intake.", sources: "Pumpkin seeds, almonds, cashews, dark chocolate, spinach, beans, whole grains, dates." },
+  zinc: { role: "Supports immune function, wound healing, taste, and DNA synthesis.", deficiency: "Impaired immunity, slow healing, hair loss, reduced taste.", sources: "Oysters, beef, pumpkin seeds, cashews, chickpeas, cheese." },
+  b12: { role: "Needed for red blood cell formation, nerve function, and DNA synthesis.", deficiency: "Fatigue, tingling, memory issues, anemia; a common gap in vegan diets and older adults.", sources: "Clams, sardines, salmon, beef, eggs, dairy, fortified foods." },
+  folate: { role: "Supports cell division and is critical before and during early pregnancy to prevent neural-tube defects.", deficiency: "Anemia, fatigue; low intake in pregnancy raises birth-defect risk.", sources: "Edamame, spinach, lentils, chickpeas, asparagus, fortified grains." },
+  vitE: { role: "A fat-soluble antioxidant protecting cell membranes.", deficiency: "Rare; can cause nerve and muscle problems in severe cases.", sources: "Sunflower seeds, almonds, hazelnuts, olive oil, avocado." },
+  vitK: { role: "Essential for blood clotting and bone metabolism.", deficiency: "Easy bruising or bleeding; interacts with blood-thinning medication.", sources: "Parsley, spinach, collards, kale, broccoli, Brussels sprouts." },
+  vitA: { role: "Supports vision, immune function, and skin; from retinol and beta-carotene.", deficiency: "Night blindness, dry eyes, frequent infections.", sources: "Liver, sweet potato, carrots, spinach, kale, cantaloupe." },
+  selenium: { role: "An antioxidant mineral supporting thyroid function.", deficiency: "Rare; can affect thyroid and immunity.", sources: "Brazil nuts (very high — 1-2 daily is plenty), tuna, sardines, eggs." },
+  choline: { role: "Supports liver function, brain development, and muscle movement.", deficiency: "Muscle and liver problems; needs rise in pregnancy.", sources: "Eggs, liver, salmon, beef, chicken, soybeans." },
+  water: { role: "Regulates temperature, transports nutrients, and cushions joints. Counts all fluids and water-rich foods.", deficiency: "Thirst, dark urine, fatigue, headache; needs rise with heat and exercise.", sources: "Water, tea, coffee, milk, soups, and produce like watermelon, cucumber, and citrus." },
+  caffeine: { role: "A stimulant that increases alertness. Tracked here as an upper limit, not a target.", deficiency: "Not a nutrient — no deficiency. Up to ~400 mg/day is generally safe for most adults; less in pregnancy.", sources: "Coffee, espresso, tea, energy drinks, cola, dark chocolate." },
+};
+
 const PRESET_NUTRIENTS = [
-  { key: "omega3", name: "Omega-3 (EPA+DHA)", unit: "g", m: 0.5, f: 0.5, src: "AHA/EFSA ~0.25–0.5 g" },
+  { key: "omega3", name: "Omega-3", unit: "g", m: 0.5, f: 0.5, src: "AHA/EFSA ~0.25–0.5 g" },
   { key: "magnesium", name: "Magnesium", unit: "mg", m: 420, f: 320, src: "NIH RDA" },
   { key: "zinc", name: "Zinc", unit: "mg", m: 11, f: 8, src: "NIH RDA" },
   { key: "b12", name: "Vitamin B12", unit: "mcg", m: 2.4, f: 2.4, src: "NIH RDA" },
@@ -377,7 +392,7 @@ const PRESET_NUTRIENTS = [
 
 const NUTRIENT_LIBRARY = {
   omega3: [["salmon", 2.1], ["sardine", 1.5], ["mackerel", 1.8], ["herring", 2.0], ["anchov", 2.0], ["trout", 0.9], ["albacore", 0.86], ["tuna", 0.3], ["oyster", 0.6], ["mussel", 0.7], ["shrimp", 0.27], ["sea bass", 0.8], ["cod", 0.2]],
-  magnesium: [["pumpkin seed", 592], ["chia", 335], ["cashew", 292], ["almond", 270], ["dark chocolate", 228], ["peanut", 168], ["spinach", 79], ["black bean", 70], ["edamame", 64], ["quinoa", 64], ["tofu", 53], ["brown rice", 43], ["lentil", 36], ["avocado", 29], ["banana", 27]],
+  magnesium: [["pumpkin seed", 592], ["chia", 335], ["cashew", 292], ["almond", 270], ["dark chocolate", 228], ["peanut", 168], ["walnut", 158], ["oat", 138], ["whole-wheat", 76], ["whole wheat", 76], ["spinach", 79], ["black bean", 70], ["edamame", 64], ["quinoa", 64], ["date", 54], ["tofu", 53], ["salmon", 30], ["brown rice", 43], ["fig", 68], ["lentil", 36], ["potato", 23], ["avocado", 29], ["banana", 27], ["yogurt", 11], ["milk", 11]],
   zinc: [["oyster", 39], ["pumpkin seed", 7.8], ["crab", 6.5], ["beef", 6.3], ["cashew", 5.8], ["cheddar", 3.1], ["pork", 2.9], ["chickpea", 1.5], ["lentil", 1.3]],
   b12: [["clam", 99], ["sardine", 8.9], ["trout", 4.5], ["salmon", 3.2], ["beef", 2.6], ["tuna", 2.5], ["egg", 1.1], ["cheddar", 1.1], ["yogurt", 0.6], ["milk", 0.5]],
   folate: [["edamame", 311], ["spinach", 194], ["lentil", 181], ["chickpea", 172], ["black bean", 149], ["asparagus", 149], ["beet", 109], ["broccoli", 108], ["avocado", 81], ["orange", 30]],
@@ -387,6 +402,8 @@ const NUTRIENT_LIBRARY = {
   selenium: [["brazil nut", 1917], ["tuna", 90], ["sunflower seed", 53], ["sardine", 52], ["shrimp", 49], ["salmon", 41], ["egg", 30], ["chicken", 27], ["beef", 26], ["brown rice", 10]],
   choline: [["beef liver", 418], ["egg", 294], ["salmon", 91], ["beef", 85], ["cod", 84], ["chicken", 79], ["peanut", 63], ["brussels", 63], ["broccoli", 40], ["tofu", 27], ["milk", 17]],
   caffeine: [["espresso", 212], ["coffee", 40], ["energy drink", 32], ["black tea", 20], ["green tea", 12], ["dark chocolate", 80], ["cola", 8]],
+  // water content in liters per 100 g (typical moisture of the food/drink)
+  water: [["water", 0.1], ["sparkling", 0.099], ["coffee", 0.099], ["tea", 0.099], ["broth", 0.096], ["soup", 0.092], ["milk", 0.089], ["juice", 0.088], ["lemonade", 0.089], ["soda", 0.09], ["cola", 0.09], ["beer", 0.092], ["smoothie", 0.085], ["yogurt", 0.085], ["watermelon", 0.091], ["cucumber", 0.095], ["celery", 0.095], ["lettuce", 0.096], ["orange", 0.087], ["apple", 0.086], ["grape", 0.081], ["soup", 0.092]],
 };
 
 // Gram weights of each quick-list serving, derived from the food data,
@@ -812,32 +829,87 @@ function analyzeIngredients(text) {
 const FLAG_COLOR = { avoid: C.high, caution: C.low, note: C.faint };
 
 
-function LabelInfo({ food }) {
-  const rows = [
-    ["Energy", Math.round(food.kcal), "kcal"], ["Protein", food.protein.toFixed(1), "g"],
-    ["Carbohydrate", food.carb.toFixed(1), "g"], ["Fat", food.fat.toFixed(1), "g"],
-    ["Fiber", food.fiber.toFixed(1), "g"], ["Sodium", Math.round(food.sodium), "mg"],
-    ["Calcium", Math.round(food.calcium), "mg"], ["Iron", food.iron.toFixed(1), "mg"],
-    ["Potassium", Math.round(food.potassium), "mg"], ["Vitamin C", Math.round(food.vitC), "mg"],
-    ["Vitamin D", food.vitD.toFixed(1), "mcg"],
+function LabelInfo({ food, onUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const hasServing = food.per100g && food.servingG > 0;
+  const factor = hasServing ? food.servingG / 100 : 1;
+  const basis = food.per100g ? (hasServing ? `per serving (${Math.round(food.servingG)} g${food.servingText ? ` — ${food.servingText}` : ""})` : "per 100 g") : "per serving";
+  const fields = [
+    ["kcal", "Energy", "kcal", 0], ["protein", "Protein", "g", 1], ["carb", "Carbohydrate", "g", 1],
+    ["fat", "Fat", "g", 1], ["fiber", "Fiber", "g", 1], ["sodium", "Sodium", "mg", 0],
+    ["calcium", "Calcium", "mg", 0], ["iron", "Iron", "mg", 1], ["potassium", "Potassium", "mg", 0],
+    ["vitC", "Vitamin C", "mg", 0], ["vitD", "Vitamin D", "mcg", 1],
   ];
+  const [draft, setDraft] = useState(null);
+  const startEdit = () => {
+    const d = { servingG: hasServing ? Math.round(food.servingG) : 100 };
+    for (const [k] of fields) d[k] = +((food[k] || 0) * (hasServing ? factor : 1)).toFixed(1);
+    setDraft(d); setEditing(true);
+  };
+  const saveEdit = () => {
+    const g = Number(draft.servingG) > 0 ? Number(draft.servingG) : 100;
+    const next = { ...food, servingG: g, manualLabel: true };
+    for (const [k] of fields) next[k] = (Number(draft[k]) || 0) / g * 100; // store per 100 g
+    setEditing(false); setDraft(null);
+    onUpdate && onUpdate(next);
+  };
   return (
     <div style={{ marginTop: 12, padding: "12px 14px", background: C.paper, border: `1px solid ${C.rule}`, borderRadius: 10 }}>
-      <div className="na-eyebrow" style={{ marginBottom: 6 }}>
-        Label info — verify against your package{food.servingText ? ` (serving: ${food.servingText})` : ""}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+        <div className="na-eyebrow">
+          Label info — verify against your package
+          {food.manualLabel && <span style={{ color: C.accent, marginLeft: 8 }}>✎ manually updated</span>}
+        </div>
+        {onUpdate && !editing && (
+          <button className="na-btn na-btn-quiet" style={{ padding: "4px 11px", fontSize: 12 }} onClick={startEdit}>
+            Edit to match package
+          </button>
+        )}
       </div>
-      <div className="na-mono" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(128px, 1fr))", gap: "4px 12px", fontSize: 12 }}>
-        {rows.map(([n, v, u]) => (
-          <div key={n} style={{ display: "flex", justifyContent: "space-between", borderBottom: `1px solid ${C.rule}`, padding: "3px 0" }}>
-            <span style={{ color: C.faint }}>{n}</span><span>{v} {u}</span>
+
+      {!editing ? (
+        <>
+          <div className="na-mono" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(128px, 1fr))", gap: "4px 12px", fontSize: 12 }}>
+            {fields.map(([k, n, u, dp]) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", borderBottom: `1px solid ${C.rule}`, padding: "3px 0" }}>
+                <span style={{ color: C.faint }}>{n}</span>
+                <span>{((food[k] || 0) * (food.per100g && hasServing ? factor : 1)).toFixed(dp)} {u}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <p style={{ margin: "6px 0 0", fontSize: 10.5, color: C.faint }}>Values per 100 g.</p>
+          <p style={{ margin: "6px 0 0", fontSize: 10.5, color: C.faint }}>
+            Values {basis}{food.per100g && hasServing ? " to match the package panel; stored internally per 100 g." : "."}
+          </p>
+        </>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(128px, 1fr))", gap: 10 }}>
+            <Field label="Serving size (g)">
+              <input className="na-input" type="number" min="1" step="any" value={draft.servingG}
+                onChange={e => setDraft(d => ({ ...d, servingG: e.target.value }))} style={{ padding: "6px 8px", fontSize: 13 }} />
+            </Field>
+            {fields.map(([k, n, u]) => (
+              <Field key={k} label={`${n} (${u}/serving)`}>
+                <input className="na-input" type="number" min="0" step="any" value={draft[k]}
+                  onChange={e => setDraft(d => ({ ...d, [k]: e.target.value }))} style={{ padding: "6px 8px", fontSize: 13 }} />
+              </Field>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button className="na-btn" style={{ padding: "7px 16px", fontSize: 13 }} onClick={saveEdit}>Save label</button>
+            <button className="na-btn na-btn-quiet" style={{ padding: "7px 16px", fontSize: 13 }} onClick={() => { setEditing(false); setDraft(null); }}>Cancel</button>
+          </div>
+          <p style={{ margin: "8px 0 0", fontSize: 10.5, color: C.faint }}>
+            Enter the numbers exactly as printed per serving — they'll be converted and
+            marked as manually updated.
+          </p>
+        </>
+      )}
+
       {food.ingredients && (
         <>
           <div className="na-eyebrow" style={{ margin: "10px 0 4px" }}>Ingredients on file</div>
-          <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, maxHeight: 96, overflowY: "auto", color: "#33414D" }}>{food.ingredients}</p>
+          <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: "#33414D", overflowWrap: "break-word" }}>{food.ingredients}</p>
         </>
       )}
       <p style={{ margin: "10px 0 0", fontSize: 10.5, color: C.faint, lineHeight: 1.5 }}>
@@ -1381,15 +1453,19 @@ function ReferenceTab({ targets }) {
   return (
     <section className="na-panel" style={{ padding: "22px 22px 10px" }}>
       <SectionHead title="Nutrient reference" sub="What each tracked nutrient does, signs of shortfall, and how to get more. Targets shown reflect your profile." />
-      {NUTRIENT_INFO.map((n, i) => {
+      {[...NUTRIENT_INFO, ...PRESET_NUTRIENTS.filter(pn => PRESET_INFO[pn.key]).map(pn => ({
+        key: pn.key, ext: true, name: pn.name,
+        role: PRESET_INFO[pn.key].role, deficiency: PRESET_INFO[pn.key].deficiency, sources: PRESET_INFO[pn.key].sources,
+        refText: `${pn.limit ? "Limit" : "Reference"} ${targets && targets.sex === "male" ? pn.m : targets && targets.sex === "female" ? pn.f : `${pn.f}–${pn.m}`} ${pn.unit} · ${pn.src}`,
+      }))].map((n, i) => {
         const isOpen = open === i;
         return (
           <div key={n.key} style={{ borderBottom: `1px solid ${C.rule}` }}>
             <button className="na-acc" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : i)}>
               <span>
-                {LABELS[n.key]}
+                {n.ext ? n.name : LABELS[n.key]}
                 <span className="na-mono" style={{ fontSize: 12, color: C.faint, fontWeight: 400, marginLeft: 10 }}>
-                  {targetFor(n.key)}/day
+                  {n.ext ? n.refText : targetFor(n.key) + "/day"}
                 </span>
               </span>
               <span className="na-mono" aria-hidden style={{ color: C.accent, fontSize: 15 }}>{isOpen ? "−" : "+"}</span>
@@ -1397,8 +1473,9 @@ function ReferenceTab({ targets }) {
             {isOpen && (
               <div style={{ padding: "0 4px 16px", fontSize: 13.5, lineHeight: 1.6, display: "grid", gap: 10 }}>
                 <div><span className="na-eyebrow" style={{ display: "block", marginBottom: 3 }}>Why it matters</span>{n.role}</div>
-                <div><span className="na-eyebrow" style={{ display: "block", marginBottom: 3 }}>{n.key === "sodium" ? "Signs of excess" : "Signs of deficiency"}</span>{n.deficiency}</div>
+                <div><span className="na-eyebrow" style={{ display: "block", marginBottom: 3 }}>{n.key === "sodium" || n.key === "caffeine" ? "Notes" : "Signs of deficiency"}</span>{n.deficiency}</div>
                 <div><span className="na-eyebrow" style={{ display: "block", marginBottom: 3 }}>{n.key === "sodium" ? "How to cut back" : "Best food sources"}</span>{n.sources}</div>
+                {n.ext && <p style={{ margin: "2px 0 0", fontSize: 10.5, color: C.faint }}>Add this to your tracked nutrients on the Daily Log to monitor it against the reference amount.</p>}
               </div>
             )}
           </div>
@@ -1551,6 +1628,7 @@ function HistoryTab({ history, onDeleteDay }) {
 
 function PastItemsTab({ barcodes, customFoods, recipes, onSelect, onDeleteScan, onDeleteCustom, onDeleteRecipe }) {
   const [filter, setFilter] = useState("");
+  const [openKey, setOpenKey] = useState(null);
   const q = filter.trim().toLowerCase();
   const fits = (name) => !q || name.toLowerCase().includes(q);
   const groups = [
@@ -1569,26 +1647,34 @@ function PastItemsTab({ barcodes, customFoods, recipes, onSelect, onDeleteScan, 
         <div key={g.label} style={{ marginBottom: 14 }}>
           <div className="na-eyebrow" style={{ margin: "8px 0 2px" }}>{g.label} ({g.rows.length})</div>
           {g.rows.map(row => (
-            <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, borderTop: `1px solid ${C.rule}` }}>
+            <React.Fragment key={row.key}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, borderTop: `1px solid ${C.rule}` }}>
               <button onClick={() => onSelect(row.food)}
                 style={{ flex: 1, display: "flex", justifyContent: "space-between", gap: 8, padding: "10px 4px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
                 <span>
                   {row.food.name}
                   {(() => { const n = analyzeIngredients(row.food.ingredients).filter(f => f.level !== "note").length;
-                    return n > 0 ? <span style={{ color: C.low, fontWeight: 600, marginLeft: 8, fontSize: 12 }}>\u26a0 {n} flagged</span> : null; })()}
+                    return n > 0 ? <span style={{ color: C.low, fontWeight: 600, marginLeft: 8, fontSize: 12 }}>⚠ {n} flagged</span> : null; })()}
                 </span>
                 <span className="na-mono" style={{ color: C.faint, fontSize: 11.5, whiteSpace: "nowrap" }}>{row.meta}</span>
               </button>
               {row.link && (
                 <a href={row.link} target="_top" rel="noopener" style={{ fontSize: 12, color: C.accent, textDecoration: "none", padding: "10px 4px", whiteSpace: "nowrap" }}>
-                  Recipe \u2197
+                  Recipe ↗
                 </a>
               )}
+              <button onClick={() => setOpenKey(openKey === g.label + row.key ? null : g.label + row.key)}
+                aria-expanded={openKey === g.label + row.key}
+                style={{ border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 12.5, padding: "10px 4px", whiteSpace: "nowrap" }}>
+                {openKey === g.label + row.key ? "Hide" : "Details"}
+              </button>
               <button onClick={row.del} aria-label={`Delete ${row.food.name}`}
                 style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 12.5, padding: "10px 6px" }}>
                 Delete
               </button>
             </div>
+            {openKey === g.label + row.key && <div style={{ paddingBottom: 12 }}><LabelInfo food={row.food} /></div>}
+            </React.Fragment>
           ))}
         </div>
       ))}
@@ -1624,6 +1710,45 @@ export default function NutritionAssessment() {
   const [macroStyle, setMacroStyle] = useState("standard");
   const [customBands, setCustomBands] = useState({ carb: [45, 65], protein: [10, 35], fat: [20, 35] });
   const [custom, setCustom] = useState({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrMsg, setOcrMsg] = useState("");
+  const photoInputRef = useRef(null);
+
+  // Photo-of-label OCR (beta): reads a nutrition panel photo with Tesseract
+  // (loaded on demand from CDN), prefills the custom-item fields for the user
+  // to verify. The photo is processed in the browser and never stored or uploaded.
+  const handleLabelPhoto = async (file) => {
+    if (!file) return;
+    setOcrBusy(true); setOcrMsg("Reading label photo… this can take ~10 seconds.");
+    try {
+      const T = await import(/* @vite-ignore */ "https://esm.run/tesseract.js@5");
+      const worker = await T.createWorker("eng");
+      const { data } = await worker.recognize(file);
+      await worker.terminate();
+      const t = (data.text || "").toLowerCase().replace(/,/g, "");
+      const grab = (re) => { const m = t.match(re); return m ? m[1] : ""; };
+      const found = {
+        kcal: grab(/calories[^0-9]{0,12}(\d{1,4})/),
+        fat: grab(/total fat[^0-9]{0,8}(\d{1,3}(?:\.\d)?)\s*g/),
+        sodium: grab(/sodium[^0-9]{0,8}(\d{1,5})\s*mg/),
+        carb: grab(/carbohydrate[^0-9]{0,8}(\d{1,3}(?:\.\d)?)\s*g/),
+        fiber: grab(/fiber[^0-9]{0,8}(\d{1,3}(?:\.\d)?)\s*g/),
+        protein: grab(/protein[^0-9]{0,8}(\d{1,3}(?:\.\d)?)\s*g/),
+      };
+      const count = Object.values(found).filter(Boolean).length;
+      if (count === 0) {
+        setOcrMsg("Couldn't read numbers from that photo — try a straight-on, well-lit shot, or type the values.");
+      } else {
+        setCustom(c => ({ ...c, ...Object.fromEntries(Object.entries(found).filter(([, v]) => v)) }));
+        setOcrMsg(`✓ Read ${count} value${count > 1 ? "s" : ""} from the photo — verify each against the package before adding.`);
+      }
+    } catch (e) {
+      setOcrMsg("Photo reading isn't available in this browser — type the values instead.");
+    } finally {
+      setOcrBusy(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  };
   const [history, setHistory] = useState({});
   const [recipes, setRecipes] = useState({});
   const [barcodes, setBarcodes] = useState({});
@@ -1764,13 +1889,24 @@ export default function NutritionAssessment() {
 
   const targets = useMemo(() => computeTargets(profile), [profile]);
 
+  // Contribution of one logged item to a custom nutrient: stored value first,
+  // then a live research-library lookup — so credit applies retroactively to
+  // foods logged before the nutrient was added, and library updates flow through.
+  const customValueFor = (food, cn) => {
+    if (food[cn.id]) return food[cn.id];
+    if (!cn.presetKey) return 0;
+    const per100 = libraryLookup(cn.presetKey, food.name);
+    if (per100 == null) return 0;
+    return food.per100g ? per100 : per100 * ((SERVING_GRAMS[food.name] || 100) / 100);
+  };
+
   const totals = useMemo(() => {
     const t = { ...ZERO };
-    const cids = Object.keys(customNutrients);
-    for (const id of cids) t[id] = 0;
+    const cns = Object.values(customNutrients);
+    for (const cn of cns) t[cn.id] = 0;
     for (const item of log) {
       for (const k of KEYS) t[k] += (item.food[k] || 0) * item.qty;
-      for (const id of cids) t[id] += (item.food[id] || 0) * item.qty;
+      for (const cn of cns) t[cn.id] += customValueFor(item.food, cn) * item.qty;
     }
     return t;
   }, [log, customNutrients]);
@@ -1876,6 +2012,7 @@ export default function NutritionAssessment() {
     setScanStatus(`✓ Scan successful (${code}) — looking up the product…`);
     try {
       const food = await lookupBarcode(code);
+      food.barcode = code;
       chooseFood(food);
       setScanStatus(`✓ Found: ${food.name}. Verify the label below, set the amount, then add to log. Saved to your scanned items for next time.`);
       const next = { ...barcodes, [code]: { code, food, lastUsed: Date.now() } };
@@ -1885,6 +2022,17 @@ export default function NutritionAssessment() {
       setScanStatus("");
       setSearchError(err.message + " Try the search box or a custom item.");
     }
+  };
+
+  const [editingCN, setEditingCN] = useState(null);
+  const [cnDraft, setCnDraft] = useState({ name: "", unit: "", target: "" });
+  const saveCnEdit = async (id) => {
+    const cn = customNutrients[id];
+    if (!cn) return;
+    const next = { ...customNutrients, [id]: { ...cn, name: cnDraft.name.trim() || cn.name, unit: cnDraft.unit.trim() || cn.unit, target: Number(cnDraft.target) > 0 ? Number(cnDraft.target) : cn.target } };
+    setCustomNutrients(next);
+    await saveStore(userKey(CKEY, currentUser), next);
+    setEditingCN(null);
   };
 
   const addCustomNutrient = async () => {
@@ -1910,6 +2058,16 @@ export default function NutritionAssessment() {
     if (!(v > 0)) return;
     const food = { ...ZERO, name: `${cn.name} (manual entry)`, serving: `1 ${cn.unit}`, [cn.id]: 1 };
     setLog(l => [...l, { food, qty: v, label: `${v} ${cn.unit}`, id: Date.now() }]);
+  };
+
+  // Save a manually corrected label back onto the selected food and its saved scan
+  const updateSelectedLabel = async (next) => {
+    setSelected(next);
+    if (next.barcode && barcodes[next.barcode]) {
+      const nb = { ...barcodes, [next.barcode]: { ...barcodes[next.barcode], food: next } };
+      setBarcodes(nb);
+      await saveStore(userKey(BKEY, currentUser), nb);
+    }
   };
 
   const deleteCustomFood = async (name) => {
@@ -2038,43 +2196,25 @@ export default function NutritionAssessment() {
         {tab === "report" && (
           <>
             {importReq && <RecipeImport req={importReq} onCancel={() => setImportReq(null)} onComplete={completeImport} />}
-            {/* ---------- Person switcher ---------- */}
-            <section className="na-panel" style={{ padding: "14px 18px", display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-              <div style={{ width: 180 }}>
-                <Field label="Logging for">
-                  <select className="na-select" value={currentUser}
-                    onChange={e => e.target.value === "__add" ? setAddingUser(true) : setCurrentUser(e.target.value)}>
-                    {users.map(u => <option key={u} value={u}>{u}</option>)}
-                    <option value="__add">+ Add person…</option>
-                  </select>
-                </Field>
-              </div>
-              {addingUser && (
-                <>
-                  <div style={{ width: 170 }}>
-                    <Field label="Nickname">
-                      <input className="na-input" value={newUser} onChange={e => setNewUser(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") addUser(); }} placeholder="e.g. Sam" />
-                    </Field>
-                  </div>
-                  <button className="na-btn" onClick={addUser}>Add</button>
-                  <button className="na-btn na-btn-quiet" onClick={() => { setAddingUser(false); setNewUser(""); }}>Cancel</button>
-                </>
-              )}
-              <p style={{ margin: 0, flex: "1 1 220px", fontSize: 11.5, color: C.faint, lineHeight: 1.5 }}>
-                Each person's log, history, recipes, and profile are kept separate and stay
-                on this device. Nicknames are optional — "Me" works fine, and all profile
-                fields remain optional.
-              </p>
-            </section>
             {/* ---------- 01 Profile ---------- */}
             <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 14, borderBottom: `2px solid ${C.navy}`, paddingBottom: 10, marginBottom: profileOpen ? 18 : 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, borderBottom: `2px solid ${C.navy}`, paddingBottom: 10, marginBottom: profileOpen ? 18 : 0, flexWrap: "wrap" }}>
                 <span className="na-mono" style={{ fontSize: 13, color: C.accent, fontWeight: 500 }}>01</span>
-                <div style={{ flex: 1 }}>
-                  <h2 className="na-serif" style={{ margin: 0, fontSize: 21, fontWeight: 700, color: C.navy }}>Subject profile</h2>
-                  {profileOpen && <p style={{ margin: "3px 0 0", fontSize: 13, color: C.faint }}>Optional. Unanswered fields fall back to general adult reference values.</p>}
-                </div>
+                <h2 className="na-serif" style={{ margin: 0, fontSize: 21, fontWeight: 700, color: C.navy, flex: "0 0 auto" }}>Profile</h2>
+                <select className="na-select" value={currentUser} aria-label="Logging for"
+                  style={{ width: 130, padding: "6px 10px", fontSize: 13 }}
+                  onChange={e => e.target.value === "__add" ? setAddingUser(true) : setCurrentUser(e.target.value)}>
+                  {users.map(u => <option key={u} value={u}>{u}</option>)}
+                  <option value="__add">+ Add person…</option>
+                </select>
+                {addingUser && (
+                  <>
+                    <input className="na-input" style={{ width: 110, padding: "6px 10px", fontSize: 13 }} value={newUser}
+                      onChange={e => setNewUser(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addUser(); }} placeholder="Nickname" />
+                    <button className="na-btn" style={{ padding: "6px 12px", fontSize: 12.5 }} onClick={addUser}>Add</button>
+                  </>
+                )}
+                <span style={{ flex: 1 }} />
                 <button className="na-btn na-btn-quiet" aria-expanded={profileOpen}
                   onClick={() => setProfileOpen(o => {
                     const nv = !o;
@@ -2086,6 +2226,10 @@ export default function NutritionAssessment() {
               </div>
               {profileOpen ? (
                 <>
+                  <p style={{ margin: "0 0 14px", fontSize: 12, color: C.faint, lineHeight: 1.5 }}>
+                    All fields optional — blanks fall back to general adult reference values. Each
+                    person's data is kept separate and stays on this device.
+                  </p>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
                 <Field label="Age (years)">
                   <input className="na-input" type="number" min="18" max="120" value={profile.age} onChange={set("age")} placeholder="—" />
@@ -2358,7 +2502,7 @@ export default function NutritionAssessment() {
               {showScanner && <BarcodeScanner onDetect={handleBarcode} onClose={() => setShowScanner(false)} />}
               {scanStatus && <p className="na-mono" style={{ marginTop: 12, marginBottom: 0, fontSize: 12.5, color: C.ok }}>{scanStatus}</p>}
               {bonusMsg && <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: C.ok, fontWeight: 600 }}>{bonusMsg}</p>}
-              {selected && selected.per100g && <LabelInfo food={selected} />}
+              {selected && selected.per100g && <LabelInfo food={selected} onUpdate={updateSelectedLabel} />}
               {selected && selected.ingredients && <IngredientCheck text={selected.ingredients} />}
               {selected && <MealPatternTips food={selected} />}
               {selected && <RestrictionCheck food={selected} active={profile.restrictions} />}
@@ -2394,6 +2538,24 @@ export default function NutritionAssessment() {
                     </Field>
                   ))}
                   <div style={{ alignSelf: "end" }}><button className="na-btn" onClick={addCustom}>Add item</button></div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <input ref={photoInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                      onChange={e => handleLabelPhoto(e.target.files && e.target.files[0])} />
+                    <button className="na-btn na-btn-quiet" disabled={ocrBusy} style={{ opacity: ocrBusy ? 0.5 : 1, display: "inline-flex", alignItems: "center", gap: 7 }}
+                      onClick={() => photoInputRef.current && photoInputRef.current.click()}>
+                      <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                        <circle cx="12" cy="13" r="3" />
+                      </svg>
+                      {ocrBusy ? "Reading photo…" : "Fill from label photo (beta)"}
+                    </button>
+                    {ocrMsg && <p className="na-mono" style={{ margin: "8px 0 0", fontSize: 12, color: ocrMsg.startsWith("✓") ? C.ok : C.low }}>{ocrMsg}</p>}
+                    <p style={{ margin: "6px 0 0", fontSize: 10.5, color: C.faint }}>
+                      Beta: reads the printed nutrition panel with on-device text recognition.
+                      Accuracy varies — always verify. The photo is processed in your browser
+                      and never stored or uploaded.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -2528,6 +2690,15 @@ export default function NutritionAssessment() {
               {Object.values(customNutrients).map(cn => (
                 <div key={cn.id}>
                   <Gauge label={cn.name} value={totals[cn.id] || 0} target={cn.target} unit={cn.unit} dp={1} isLimit={!!cn.limit} />
+                  {editingCN === cn.id && (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", padding: "8px 0" }}>
+                      <div style={{ width: 150 }}><Field label="Name"><input className="na-input" value={cnDraft.name} onChange={e => setCnDraft(d => ({ ...d, name: e.target.value }))} style={{ padding: "6px 8px", fontSize: 13 }} /></Field></div>
+                      <div style={{ width: 80 }}><Field label="Unit"><input className="na-input" value={cnDraft.unit} onChange={e => setCnDraft(d => ({ ...d, unit: e.target.value }))} style={{ padding: "6px 8px", fontSize: 13 }} /></Field></div>
+                      <div style={{ width: 110 }}><Field label={cn.limit ? "Daily limit" : "Daily target"}><input className="na-input" type="number" min="0" step="any" value={cnDraft.target} onChange={e => setCnDraft(d => ({ ...d, target: e.target.value }))} style={{ padding: "6px 8px", fontSize: 13 }} /></Field></div>
+                      <button className="na-btn" style={{ padding: "7px 14px", fontSize: 12.5 }} onClick={() => saveCnEdit(cn.id)}>Save</button>
+                      <button className="na-btn na-btn-quiet" style={{ padding: "7px 14px", fontSize: 12.5 }} onClick={() => setEditingCN(null)}>Cancel</button>
+                    </div>
+                  )}
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0 4px" }}>
                     <input className="na-input" type="number" min="0" step="any" defaultValue=""
                       placeholder={`Amount (${cn.unit})`} style={{ width: 130, padding: "6px 10px", fontSize: 13 }}
@@ -2539,6 +2710,10 @@ export default function NutritionAssessment() {
                         if (el) el.value = "";
                       }}>
                       Log amount
+                    </button>
+                    <button className="na-btn na-btn-quiet" style={{ padding: "7px 14px", fontSize: 12.5 }}
+                      onClick={() => { setEditingCN(cn.id); setCnDraft({ name: cn.name, unit: cn.unit, target: String(cn.target) }); }}>
+                      Edit
                     </button>
                     <button className="na-btn na-btn-quiet" style={{ padding: "7px 14px", fontSize: 12.5, color: C.high }}
                       onClick={() => deleteCustomNutrient(cn.id)}>
