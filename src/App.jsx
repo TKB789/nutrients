@@ -239,6 +239,46 @@ const NUTRIENT_INFO = [
   },
 ];
 
+
+/* ------------------------------------------------------------------ */
+/*  Bonus compounds — phytochemicals, antioxidants, and other extras  */
+/*  that don't appear in the standard nutrient panel. Matched by      */
+/*  food-name keywords; used to celebrate good picks.                 */
+/* ------------------------------------------------------------------ */
+
+const BONUS_FOODS = [
+  { match: ["blueberr", "blackberr", "raspberr", "strawberr", "berr"], extra: "Anthocyanins", blurb: "antioxidant pigments studied for heart and brain health" },
+  { match: ["spinach", "kale", "chard", "collard"], extra: "Lutein & zeaxanthin", blurb: "carotenoids that support eye health" },
+  { match: ["tomato"], extra: "Lycopene", blurb: "an antioxidant carotenoid, more available when cooked" },
+  { match: ["broccoli", "cauliflower", "brussels", "cabbage"], extra: "Sulforaphane", blurb: "a compound from cruciferous vegetables studied for cellular protection" },
+  { match: ["salmon", "sardine", "mackerel", "trout", "tuna"], extra: "Omega-3s (EPA/DHA)", blurb: "fatty acids that support heart and brain function" },
+  { match: ["walnut"], extra: "Omega-3 ALA & polyphenols", blurb: "plant omega-3s plus antioxidant compounds" },
+  { match: ["almond", "hazelnut", "pistachio", "cashew", "pecan", "nut"], extra: "Vitamin E & polyphenols", blurb: "antioxidants concentrated in nuts" },
+  { match: ["garlic"], extra: "Allicin", blurb: "the sulfur compound behind garlic's studied cardiovascular benefits" },
+  { match: ["onion", "shallot", "leek"], extra: "Quercetin", blurb: "an anti-inflammatory flavonoid" },
+  { match: ["sweet potato", "carrot", "pumpkin", "butternut"], extra: "Beta-carotene", blurb: "a vitamin A precursor and antioxidant" },
+  { match: ["avocado"], extra: "Monounsaturated fat & lutein", blurb: "heart-friendly fats plus an eye-supporting carotenoid" },
+  { match: ["oat"], extra: "Beta-glucan", blurb: "a soluble fiber shown to lower LDL cholesterol" },
+  { match: ["bean", "lentil", "chickpea"], extra: "Polyphenols & resistant starch", blurb: "compounds that feed beneficial gut bacteria" },
+  { match: ["olive oil", "olive"], extra: "Oleocanthal & polyphenols", blurb: "anti-inflammatory compounds in extra-virgin olive oil" },
+  { match: ["orange", "grapefruit", "lemon", "lime", "citrus"], extra: "Flavonoids (hesperidin)", blurb: "citrus compounds studied for vascular health" },
+  { match: ["grape"], extra: "Resveratrol", blurb: "a polyphenol concentrated in grape skins" },
+  { match: ["dark chocolate", "cocoa", "cacao"], extra: "Cocoa flavanols", blurb: "compounds linked to blood-flow benefits" },
+  { match: ["yogurt", "kefir", "kimchi", "sauerkraut", "miso", "tempeh"], extra: "Probiotics", blurb: "live cultures that support the gut microbiome" },
+  { match: ["beet"], extra: "Nitrates & betalains", blurb: "compounds studied for blood pressure and exercise performance" },
+  { match: ["pomegranate"], extra: "Punicalagins", blurb: "potent antioxidant polyphenols" },
+  { match: ["egg"], extra: "Choline & lutein", blurb: "a brain-essential nutrient plus an eye-supporting carotenoid" },
+  { match: ["mushroom"], extra: "Ergothioneine", blurb: "an amino-acid antioxidant unique to mushrooms" },
+  { match: ["green tea", "matcha"], extra: "Catechins (EGCG)", blurb: "antioxidant compounds concentrated in green tea" },
+  { match: ["turmeric"], extra: "Curcumin", blurb: "the anti-inflammatory compound in turmeric" },
+  { match: ["tofu", "edamame", "soy"], extra: "Isoflavones", blurb: "soy compounds studied for heart and bone health" },
+];
+
+function detectBonuses(name) {
+  const n = (name || "").toLowerCase();
+  return BONUS_FOODS.filter(b => b.match.some(k => n.includes(k)));
+}
+
 /* ------------------------------------------------------------------ */
 /*  Recipe recommendations                                            */
 /* ------------------------------------------------------------------ */
@@ -1101,6 +1141,7 @@ export default function NutritionAssessment() {
   const [showCustom, setShowCustom] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
+  const [bonusMsg, setBonusMsg] = useState("");
   const [custom, setCustom] = useState({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
   const [history, setHistory] = useState({});
   const [recipes, setRecipes] = useState({});
@@ -1257,6 +1298,12 @@ export default function NutritionAssessment() {
       multiplier = Number(qty) || 1;
     }
     setLog(l => [...l, { food: selected, qty: multiplier, label, id: Date.now() }]);
+    const bonuses = detectBonuses(selected.name);
+    if (bonuses.length > 0) {
+      const b = bonuses[0];
+      setBonusMsg(`✦ Nice pick! Beyond the standard panel, this also brings ${b.extra.toLowerCase()} — ${b.blurb}.`);
+      setTimeout(() => setBonusMsg(""), 8000);
+    }
     setSelected(null); setQuery(""); setQty(1); setAmount(100); setAmountUnit("g"); setUsdaResults([]);
   };
 
@@ -1636,6 +1683,7 @@ export default function NutritionAssessment() {
 
               {showScanner && <BarcodeScanner onDetect={handleBarcode} onClose={() => setShowScanner(false)} />}
               {scanStatus && <p className="na-mono" style={{ marginTop: 12, marginBottom: 0, fontSize: 12.5, color: C.ok }}>{scanStatus}</p>}
+              {bonusMsg && <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: C.ok, fontWeight: 600 }}>{bonusMsg}</p>}
 
               {searchError && <p role="alert" style={{ marginTop: 12, marginBottom: 0, fontSize: 13, color: C.high }}>{searchError}</p>}
 
@@ -1735,6 +1783,38 @@ export default function NutritionAssessment() {
 
                   <div className="na-eyebrow" style={{ margin: "18px 0 2px" }}>Intake limits</div>
                   <Gauge label="Sodium" value={totals.sodium} target={targets.sodiumLimit} unit="mg" isLimit />
+
+                  {(() => {
+                    const seen = new Map();
+                    for (const item of log) {
+                      for (const b of detectBonuses(item.food.name)) {
+                        if (!seen.has(b.extra)) seen.set(b.extra, { ...b, foods: [item.food.name] });
+                        else if (!seen.get(b.extra).foods.includes(item.food.name)) seen.get(b.extra).foods.push(item.food.name);
+                      }
+                    }
+                    const found = [...seen.values()];
+                    if (found.length === 0) return null;
+                    return (
+                      <>
+                        <div className="na-eyebrow" style={{ margin: "18px 0 2px" }}>Bonus nutrients today</div>
+                        <div style={{ padding: "12px 14px", margin: "8px 0 4px", background: "#eef0e4", border: `1px solid ${C.rule}`, borderRadius: 10 }}>
+                          <p style={{ margin: "0 0 8px", fontSize: 13.5, fontWeight: 600, color: C.ok }}>
+                            ✦ Great choices — today's foods also deliver {found.length} extra{found.length > 1 ? "s" : ""} beyond the standard panel:
+                          </p>
+                          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 }}>
+                            {found.map(b => (
+                              <li key={b.extra} style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+                                <strong>{b.extra}</strong> <span style={{ color: C.faint }}>({b.foods.slice(0, 2).join(", ")})</span> — {b.blurb}
+                              </li>
+                            ))}
+                          </ul>
+                          <p style={{ margin: "8px 0 0", fontSize: 11, color: C.faint }}>
+                            These plant compounds and extras have no official daily targets, so they aren't scored — just celebrated.
+                          </p>
+                        </div>
+                      </>
+                    );
+                  })()}
 
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "16px 0" }}>
                     <span style={{ fontSize: 12.5, color: C.faint }}>Days save automatically as you log — see the History tab.</span>
