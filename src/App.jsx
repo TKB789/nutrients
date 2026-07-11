@@ -91,6 +91,9 @@ const KEYS = Object.keys(ZERO);
 // DEMO_KEY works but is rate-limited (~30 lookups/hour per visitor IP).
 const USDA_API_KEY = "DEMO_KEY";
 
+// The companion Citrus&Spice recipe site (the Recipes ↗ tab links here).
+const RECIPE_SITE_URL = "https://tkb789.github.io/Recipes/";
+
 // Approximate gram equivalents for household measures. Weight units are
 // exact; volume units assume a typical density and are marked approximate.
 const UNITS = {
@@ -1268,8 +1271,6 @@ export default function NutritionAssessment() {
   const fatPct = totals.kcal ? (fatKcal / totals.kcal) * 100 : 0;
   const carbPct = totals.kcal ? (carbKcal / totals.kcal) * 100 : 0;
 
-  const embedded = typeof window !== "undefined" && window.self !== window.top;
-
   const TABS = [
     ["report", "Report"],
     ["reference", "Nutrients"],
@@ -1281,22 +1282,23 @@ export default function NutritionAssessment() {
     <div className="na-root">
       <style>{css}</style>
 
-      <header style={{ background: C.paper, borderBottom: `1px solid ${C.rule}`, padding: embedded ? "0 20px" : "18px 20px 0" }}>
+      <header style={{ background: C.paper, borderBottom: `1px solid ${C.rule}`, padding: "18px 20px 0" }}>
         <div style={{ maxWidth: 860, margin: "0 auto" }}>
-          {!embedded && (
-            <div>
-              <h1 className="na-serif" style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.15 }}>
-                Nutrient Tracker
-              </h1>
-              <div className="na-eyebrow" style={{ marginTop: 2 }}>Daily intake, history & fitness</div>
-            </div>
-          )}
-          <nav role="tablist" style={{ display: "flex", gap: 4, marginTop: embedded ? 0 : 10, overflowX: "auto" }}>
+          <div>
+            <h1 className="na-serif" style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.15 }}>
+              Nutrient Tracker
+            </h1>
+            <div className="na-eyebrow" style={{ marginTop: 2 }}>Daily intake, history & fitness</div>
+          </div>
+          <nav role="tablist" style={{ display: "flex", gap: 4, marginTop: 10, overflowX: "auto" }}>
             {TABS.map(([id, label]) => (
               <button key={id} role="tab" aria-selected={tab === id} className="na-tab" onClick={() => setTab(id)}>
                 {label}
               </button>
             ))}
+            <a href={RECIPE_SITE_URL} className="na-tab" style={{ textDecoration: "none", color: C.accent, fontWeight: 500 }}>
+              Recipes ↗
+            </a>
           </nav>
         </div>
       </header>
