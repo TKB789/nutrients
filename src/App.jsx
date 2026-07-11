@@ -240,6 +240,68 @@ const NUTRIENT_INFO = [
 ];
 
 
+
+/* ------------------------------------------------------------------ */
+/*  Extended-nutrient research library                                */
+/*  Presets: nutrients outside the USDA panel we map, with reference  */
+/*  amounts from the NIH Dietary Reference Intakes (RDA/AI), AHA/EFSA */
+/*  guidance for EPA+DHA, and the FDA limit for caffeine. m/f values  */
+/*  are adult male/female references.                                 */
+/*  Food values: approximate content per 100 g, USDA/NIH-derived,     */
+/*  matched by name keyword so searched & scanned foods auto-credit.  */
+/* ------------------------------------------------------------------ */
+
+const PRESET_NUTRIENTS = [
+  { key: "omega3", name: "Omega-3 (EPA+DHA)", unit: "g", m: 0.5, f: 0.5, src: "AHA/EFSA ~0.25–0.5 g" },
+  { key: "magnesium", name: "Magnesium", unit: "mg", m: 420, f: 320, src: "NIH RDA" },
+  { key: "zinc", name: "Zinc", unit: "mg", m: 11, f: 8, src: "NIH RDA" },
+  { key: "b12", name: "Vitamin B12", unit: "mcg", m: 2.4, f: 2.4, src: "NIH RDA" },
+  { key: "folate", name: "Folate", unit: "mcg DFE", m: 400, f: 400, src: "NIH RDA" },
+  { key: "vitE", name: "Vitamin E", unit: "mg", m: 15, f: 15, src: "NIH RDA" },
+  { key: "vitK", name: "Vitamin K", unit: "mcg", m: 120, f: 90, src: "NIH AI" },
+  { key: "vitA", name: "Vitamin A", unit: "mcg RAE", m: 900, f: 700, src: "NIH RDA" },
+  { key: "selenium", name: "Selenium", unit: "mcg", m: 55, f: 55, src: "NIH RDA" },
+  { key: "choline", name: "Choline", unit: "mg", m: 550, f: 425, src: "NIH AI" },
+  { key: "water", name: "Water", unit: "L", m: 3.7, f: 2.7, src: "NIH AI, total fluids" },
+  { key: "caffeine", name: "Caffeine", unit: "mg", m: 400, f: 400, limit: true, src: "FDA daily limit" },
+];
+
+const NUTRIENT_LIBRARY = {
+  omega3: [["salmon", 2.1], ["sardine", 1.5], ["mackerel", 1.8], ["herring", 2.0], ["anchov", 2.0], ["trout", 0.9], ["albacore", 0.86], ["tuna", 0.3], ["oyster", 0.6], ["mussel", 0.7], ["shrimp", 0.27], ["sea bass", 0.8], ["cod", 0.2]],
+  magnesium: [["pumpkin seed", 592], ["chia", 335], ["cashew", 292], ["almond", 270], ["dark chocolate", 228], ["peanut", 168], ["spinach", 79], ["black bean", 70], ["edamame", 64], ["quinoa", 64], ["tofu", 53], ["brown rice", 43], ["lentil", 36], ["avocado", 29], ["banana", 27]],
+  zinc: [["oyster", 39], ["pumpkin seed", 7.8], ["crab", 6.5], ["beef", 6.3], ["cashew", 5.8], ["cheddar", 3.1], ["pork", 2.9], ["chickpea", 1.5], ["lentil", 1.3]],
+  b12: [["clam", 99], ["sardine", 8.9], ["trout", 4.5], ["salmon", 3.2], ["beef", 2.6], ["tuna", 2.5], ["egg", 1.1], ["cheddar", 1.1], ["yogurt", 0.6], ["milk", 0.5]],
+  folate: [["edamame", 311], ["spinach", 194], ["lentil", 181], ["chickpea", 172], ["black bean", 149], ["asparagus", 149], ["beet", 109], ["broccoli", 108], ["avocado", 81], ["orange", 30]],
+  vitE: [["sunflower seed", 35], ["almond", 25.6], ["hazelnut", 15], ["olive oil", 14.4], ["peanut", 9.1], ["avocado", 2.1], ["spinach", 2.0]],
+  vitK: [["parsley", 1640], ["spinach", 483], ["collard", 407], ["kale", 390], ["broccoli", 141], ["brussels", 140], ["romaine", 102], ["kiwi", 40]],
+  vitA: [["beef liver", 9440], ["sweet potato", 961], ["carrot", 835], ["spinach", 469], ["kale", 241], ["cantaloupe", 169], ["red pepper", 157], ["egg", 160]],
+  selenium: [["brazil nut", 1917], ["tuna", 90], ["sunflower seed", 53], ["sardine", 52], ["shrimp", 49], ["salmon", 41], ["egg", 30], ["chicken", 27], ["beef", 26], ["brown rice", 10]],
+  choline: [["beef liver", 418], ["egg", 294], ["salmon", 91], ["beef", 85], ["cod", 84], ["chicken", 79], ["peanut", 63], ["brussels", 63], ["broccoli", 40], ["tofu", 27], ["milk", 17]],
+  caffeine: [["espresso", 212], ["coffee", 40], ["energy drink", 32], ["black tea", 20], ["green tea", 12], ["dark chocolate", 80], ["cola", 8]],
+};
+
+// Approximate gram weights of the built-in quick list's servings, so
+// per-100 g library values can be scaled for those items too.
+const SERVING_GRAMS = {
+  "Oatmeal, cooked": 234, "Egg, large": 50, "Whole-wheat bread": 32, "White bread": 29,
+  "Banana": 118, "Apple": 182, "Orange": 131, "Milk, 2%": 244, "Greek yogurt, plain": 245,
+  "Cheddar cheese": 28, "Chicken breast, cooked": 85, "Salmon, cooked": 85,
+  "Ground beef 90%, cooked": 85, "Tofu, firm": 126, "Black beans, cooked": 86,
+  "Lentils, cooked": 99, "Brown rice, cooked": 195, "White rice, cooked": 186,
+  "Pasta, cooked": 140, "Broccoli, cooked": 156, "Spinach, raw": 60, "Carrot": 61,
+  "Sweet potato, baked": 114, "Potato, baked w/ skin": 173, "Avocado": 100,
+  "Almonds": 28, "Peanut butter": 32, "Olive oil": 13.5, "Orange juice": 248,
+  "Tomato": 123, "Tuna, canned in water": 85, "Mixed green salad": 72,
+};
+
+function libraryLookup(presetKey, foodName) {
+  const list = NUTRIENT_LIBRARY[presetKey];
+  if (!list) return null;
+  const n = (foodName || "").toLowerCase();
+  for (const [kw, val] of list) if (n.includes(kw)) return val;
+  return null;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Bonus compounds — phytochemicals, antioxidants, and other extras  */
 /*  that don't appear in the standard nutrient panel. Matched by      */
@@ -1242,15 +1304,28 @@ export default function NutritionAssessment() {
   }, []);
 
   const logRecipeServings = (food, count) => {
-    setLog(l => [...l, { food, qty: count, label: `${count} serving${count !== 1 ? "s" : ""}`, id: Date.now() }]);
+    setLog(l => [...l, { food: enrichFood(food), qty: count, label: `${count} serving${count !== 1 ? "s" : ""}`, id: Date.now() }]);
+    if (recipes[food.name]) {
+      const next = { ...recipes, [food.name]: { ...recipes[food.name], lastUsed: Date.now() } };
+      setRecipes(next);
+      saveStore(userKey(RKEY, currentUser), next);
+    }
     setTab("report");
   };
 
-  const completeImport = async ({ title, link, matched, totals: rTotals, servingsMade, servingsEaten }) => {
+  const completeImport = async ({ title, link, matched, servingsMade, servingsEaten }) => {
+    const cids = Object.keys(customNutrients);
+    const enriched = matched.map(m => ({ ...m, food: enrichFood(m.food) }));
+    const rTotals = { ...ZERO };
+    for (const id of cids) rTotals[id] = 0;
+    for (const m of enriched) {
+      for (const k of KEYS) rTotals[k] += (m.food[k] || 0) * m.mult;
+      for (const id of cids) rTotals[id] += (m.food[id] || 0) * m.mult;
+    }
     const per = {};
-    for (const k of KEYS) per[k] = rTotals[k] / servingsMade;
+    for (const k of [...KEYS, ...cids]) per[k] = rTotals[k] / servingsMade;
     const food = { ...per, name: title, serving: "1 serving", isRecipe: true };
-    const next = { ...recipes, [title]: { name: title, servings: servingsMade, food, link, ingredients: matched.map(m => `${m.food.name} — ${m.label}`) } };
+    const next = { ...recipes, [title]: { name: title, servings: servingsMade, food, link, lastUsed: Date.now(), ingredients: matched.map(m => `${m.food.name} — ${m.label}`) } };
     setRecipes(next);
     await saveStore(userKey(RKEY, currentUser), next);
     setLog(l => [...l, { food, qty: servingsEaten, label: `${servingsEaten} serving${servingsEaten !== 1 ? "s" : ""}`, id: Date.now() }]);
@@ -1302,6 +1377,20 @@ export default function NutritionAssessment() {
 
   const set = (k) => (e) => setProfile(p => ({ ...p, [k]: e.target.value }));
 
+  // Auto-credit custom nutrients from the research library (e.g. salmon -> omega-3)
+  const enrichFood = (food) => {
+    const cns = Object.values(customNutrients).filter(cn => cn.presetKey);
+    if (cns.length === 0) return food;
+    const out = { ...food };
+    for (const cn of cns) {
+      if (out[cn.id]) continue;
+      const per100 = libraryLookup(cn.presetKey, out.name);
+      if (per100 == null) continue;
+      out[cn.id] = out.per100g ? per100 : Math.round(per100 * ((SERVING_GRAMS[out.name] || 100) / 100) * 100) / 100;
+    }
+    return out;
+  };
+
   const addFood = () => {
     if (!selected) return;
     let multiplier, label = null;
@@ -1313,7 +1402,7 @@ export default function NutritionAssessment() {
     } else {
       multiplier = Number(qty) || 1;
     }
-    setLog(l => [...l, { food: selected, qty: multiplier, label, id: Date.now() }]);
+    setLog(l => [...l, { food: enrichFood(selected), qty: multiplier, label, id: Date.now() }]);
     const bonuses = detectBonuses(selected.name);
     if (bonuses.length > 0) {
       const b = bonuses[0];
@@ -1364,11 +1453,11 @@ export default function NutritionAssessment() {
     const name = newNutrient.name.trim();
     const target = Number(newNutrient.target);
     if (!name || !(target > 0)) return;
-    const id = "cn_" + name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-    const next = { ...customNutrients, [id]: { id, name, unit: newNutrient.unit.trim() || "g", target } };
+    const id = newNutrient.presetKey ? "cn_" + newNutrient.presetKey : "cn_" + name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+    const next = { ...customNutrients, [id]: { id, name, unit: newNutrient.unit.trim() || "g", target, presetKey: newNutrient.presetKey || null, limit: !!newNutrient.limit } };
     setCustomNutrients(next);
     await saveStore(userKey(CKEY, currentUser), next);
-    setNewNutrient({ name: "", unit: "g", target: "" });
+    setNewNutrient({ name: "", unit: "g", target: "", presetKey: null, limit: false, custom: false });
   };
 
   const deleteCustomNutrient = async (id) => {
@@ -1630,7 +1719,7 @@ export default function NutritionAssessment() {
                   </p>
                 ) : (
                   <div style={{ display: "grid", gap: 10, margin: "4px 0 14px" }}>
-                    {Object.values(recipes).map(r => (
+                    {Object.values(recipes).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(r => (
                       <div key={r.name} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 10, padding: "10px 14px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
                           <span className="na-serif" style={{ fontSize: 15.5, fontWeight: 700 }}>
@@ -1886,7 +1975,7 @@ export default function NutritionAssessment() {
               )}
               {Object.values(customNutrients).map(cn => (
                 <div key={cn.id}>
-                  <Gauge label={cn.name} value={totals[cn.id] || 0} target={cn.target} unit={cn.unit} dp={1} />
+                  <Gauge label={cn.name} value={totals[cn.id] || 0} target={cn.target} unit={cn.unit} dp={1} isLimit={!!cn.limit} />
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0 4px" }}>
                     <input className="na-input" type="number" min="0" step="any" defaultValue=""
                       placeholder={`Amount (${cn.unit})`} style={{ width: 130, padding: "6px 10px", fontSize: 13 }}
@@ -1907,25 +1996,52 @@ export default function NutritionAssessment() {
                 </div>
               ))}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", padding: "10px 0 14px" }}>
-                <div style={{ flex: "1 1 150px", maxWidth: 220 }}>
-                  <Field label="Nutrient to track">
-                    <input className="na-input" value={newNutrient.name}
-                      onChange={e => setNewNutrient(n => ({ ...n, name: e.target.value }))}
-                      placeholder="e.g. Omega-3 (EPA+DHA)" />
+                <div style={{ flex: "1 1 230px", maxWidth: 340 }}>
+                  <Field label="Add a nutrient" note="Reference amounts: NIH Dietary Reference Intakes; AHA/EFSA for omega-3; FDA limit for caffeine.">
+                    <select className="na-select" value={newNutrient.presetKey || (newNutrient.custom ? "custom" : "")}
+                      onChange={e => {
+                        const v = e.target.value;
+                        if (v === "custom") { setNewNutrient({ name: "", unit: "g", target: "", presetKey: null, limit: false, custom: true }); return; }
+                        if (!v) { setNewNutrient({ name: "", unit: "g", target: "", presetKey: null, limit: false, custom: false }); return; }
+                        const pn = PRESET_NUTRIENTS.find(x => x.key === v);
+                        const t = profile.sex === "male" ? pn.m : profile.sex === "female" ? pn.f : Math.round(((pn.m + pn.f) / 2) * 100) / 100;
+                        setNewNutrient({ name: pn.name, unit: pn.unit, target: String(t), presetKey: pn.key, limit: !!pn.limit, custom: false });
+                      }}>
+                      <option value="">Choose a researched nutrient…</option>
+                      {PRESET_NUTRIENTS.map(pn => (
+                        <option key={pn.key} value={pn.key}>
+                          {pn.name} — {pn.limit ? "limit" : "ref."} {profile.sex === "male" ? pn.m : profile.sex === "female" ? pn.f : `${pn.f}–${pn.m}`} {pn.unit} · {pn.src}
+                        </option>
+                      ))}
+                      <option value="custom">Custom — not listed…</option>
+                    </select>
                   </Field>
                 </div>
-                <div style={{ width: 84 }}>
-                  <Field label="Unit">
-                    <input className="na-input" value={newNutrient.unit}
-                      onChange={e => setNewNutrient(n => ({ ...n, unit: e.target.value }))} placeholder="g" />
-                  </Field>
-                </div>
-                <div style={{ width: 110 }}>
-                  <Field label="Daily target">
-                    <input className="na-input" type="number" min="0" step="any" value={newNutrient.target}
-                      onChange={e => setNewNutrient(n => ({ ...n, target: e.target.value }))} placeholder="1.5" />
-                  </Field>
-                </div>
+                {newNutrient.custom && (
+                  <div style={{ flex: "1 1 140px", maxWidth: 200 }}>
+                    <Field label="Nutrient name">
+                      <input className="na-input" value={newNutrient.name}
+                        onChange={e => setNewNutrient(n => ({ ...n, name: e.target.value }))}
+                        placeholder="e.g. Lutein" />
+                    </Field>
+                  </div>
+                )}
+                {(newNutrient.custom || newNutrient.presetKey) && (
+                  <>
+                    <div style={{ width: 84 }}>
+                      <Field label="Unit">
+                        <input className="na-input" value={newNutrient.unit}
+                          onChange={e => setNewNutrient(n => ({ ...n, unit: e.target.value }))} placeholder="g" />
+                      </Field>
+                    </div>
+                    <div style={{ width: 130 }}>
+                      <Field label={newNutrient.limit ? "Daily limit" : "Daily target"}>
+                        <input className="na-input" type="number" min="0" step="any" value={newNutrient.target}
+                          onChange={e => setNewNutrient(n => ({ ...n, target: e.target.value }))} placeholder="1.5" />
+                      </Field>
+                    </div>
+                  </>
+                )}
                 <button className="na-btn" onClick={addCustomNutrient}
                   disabled={!newNutrient.name.trim() || !(Number(newNutrient.target) > 0)}
                   style={{ opacity: newNutrient.name.trim() && Number(newNutrient.target) > 0 ? 1 : 0.45 }}>
@@ -1933,9 +2049,11 @@ export default function NutritionAssessment() {
                 </button>
               </div>
               <p style={{ fontSize: 11.5, color: C.faint, margin: "0 0 8px", lineHeight: 1.5 }}>
-                Searched and scanned foods don't carry custom nutrients automatically —
-                log amounts here (e.g. a fish-oil capsule) or include them in custom items below.
-                Set targets from your product label or your clinician's advice.
+                Foods you search, scan, or import are auto-credited for these nutrients when
+                they match the built-in research library (e.g. salmon → omega-3, almonds →
+                magnesium & vitamin E). Coverage is approximate and not exhaustive, so quick-log
+                supplements or label amounts to fill gaps. Reference amounts are general adult
+                values — adjust per your clinician's advice.
               </p>
             </section>
 
