@@ -535,28 +535,89 @@ function BarcodeScanner({ onDetect, onClose }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tab: Recipe builder — enter a recipe's ingredients, get nutrients */
-/*  per serving, save it, and log servings to today's intake.         */
+/*  Recipe import — receives a recipe from the Citrus&Spice site,     */
+/*  walks through matching each ingredient to a food, then saves it   */
+/*  and logs the macros.                                              */
 /* ------------------------------------------------------------------ */
 
-function RecipeBuilderTab({ recipes, setRecipes, onLogServings, storageKey }) {
-  const [name, setName] = useState("");
-  const [link, setLink] = useState("");
-  const [servings, setServings] = useState(4);
-  const [ings, setIngs] = useState([]);
-  const [q, setQ] = useState("");
-  const [src, setSrc] = useState("usda");
+const FRACTIONS = { "\u00bd": 0.5, "\u2153": 0.333, "\u2154": 0.667, "\u00bc": 0.25, "\u00be": 0.75, "\u215b": 0.125 };
+
+function cleanIngredient(line) {
+  return line.toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[\u00bd\u2153\u2154\u00bc\u00be\u215b]/g, " ")
+    .replace(/\b\d+[\d/.\-]*\b/g, " ")
+    .replace(/\b(cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|pounds?|lbs?|lb|grams?|g|kg|ml|l|liters?|pinch(es)?|dash(es)?|cloves?|cans?|slices?|pieces?|large|medium|small|fresh|chopped|minced|diced|sliced|ground|shredded|grated|of|to|taste|optional|and|or|about|plus|for|serving)\b/g, " ")
+    .replace(/[,.;:*]/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+
+function guessAmount(line) {
+  const t = line.toLowerCase();
+  const m = t.match(/(\d+\s+\d\/\d|\d+\/\d|\d+(?:\.\d+)?|[\u00bd\u2153\u2154\u00bc\u00be\u215b])\s*(cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|pounds?|lbs?|lb|grams?|g|ml)\b/);
+  if (!m) return null;
+  let n;
+  if (FRACTIONS[m[1]]) n = FRACTIONS[m[1]];
+  else if (m[1].includes("/")) {
+    n = 0;
+    for (const part of m[1].split(/\s+/)) {
+      if (part.includes("/")) { const [a, b] = part.split("/"); n += Number(a) / Number(b); }
+      else n += Number(part);
+    }
+  } else n = Number(m[1]);
+  const map = { cup: "cup", cups: "cup", tablespoon: "tbsp", tablespoons: "tbsp", tbsp: "tbsp", teaspoon: "tsp", teaspoons: "tsp", tsp: "tsp", ounce: "oz", ounces: "oz", oz: "oz", pound: "lb", pounds: "lb", lbs: "lb", lb: "lb", gram: "g", grams: "g", g: "g", ml: "ml" };
+  return { amt: Math.round(n * 100) / 100, unit: map[m[2]] || "g" };
+}
+
+function RecipeImport({ req, onCancel, onComplete }) {
+  const lines = (req.ingredients || []).map(l => String(l).trim()).filter(Boolean);
+  const [idx, setIdx] = useState(0);
+  const [matched, setMatched] = useState([]);
+  const [q, setQ] = useState(lines[0] ? cleanIngredient(lines[0]) : "");
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [sel, setSel] = useState(null);
-  const [amt, setAmt] = useState(100);
-  const [unit, setUnit] = useState("g");
+  const g0 = lines[0] ? guessAmount(lines[0]) : null;
+  const [amt, setAmt] = useState(g0 ? g0.amt : 100);
+  const [unit, setUnit] = useState(g0 ? g0.unit : "g");
   const [qty, setQty] = useState(1);
-  const [msg, setMsg] = useState("");
-  const [logCounts, setLogCounts] = useState({});
+  const [servingsMade, setServingsMade] = useState(() => {
+    const m = String(req.yield || "").match(/\d+/);
+    return m ? Number(m[0]) : 4;
+  });
+  const [servingsEaten, setServingsEaten] = useState(1);
 
-  const localMatches = q ? FOODS.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6) : [];
+  const done = idx >= lines.length;
+  const line = lines[idx];
+  const localMatches = q ? FOODS.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 4) : [];
+
+  const advance = (entry) => {
+    if (entry) setMatched(m => [...m, entry]);
+    const ni = idx + 1;
+    setIdx(ni);
+    setSel(null); setResults([]); setErr("");
+    if (ni < lines.length) {
+      setQ(cleanIngredient(lines[ni]));
+      const g = guessAmount(lines[ni]);
+      setAmt(g ? g.amt : 100); setUnit(g ? g.unit : "g"); setQty(1);
+    }
+  };
+
+  const confirm = () => {
+    if (!sel) return;
+    let mult, label;
+    if (sel.per100g) {
+      const u = UNITS[unit];
+      const grams = (Number(amt) || 100) * u.grams;
+      mult = grams / 100;
+      label = unit === "g" ? `${Math.round(grams)} g` : `${amt} ${u.label} (~${Math.round(grams)} g)`;
+    } else {
+      mult = Number(qty) || 1;
+      label = `${mult} × ${sel.serving}`;
+    }
+    advance({ line, food: sel, mult, label });
+  };
 
   const runSearch = async () => {
     if (!q.trim()) return;
@@ -564,238 +625,117 @@ function RecipeBuilderTab({ recipes, setRecipes, onLogServings, storageKey }) {
     try {
       const foods = await searchFdc(q.trim());
       setResults(foods);
-      if (foods.length === 0) setErr("No matches found.");
+      if (foods.length === 0) setErr("No matches — reword the search or skip this line.");
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
-  };
-
-  const addIngredient = () => {
-    if (!sel) return;
-    let mult, label;
-    if (sel.per100g) {
-      const u = UNITS[unit];
-      const g = (Number(amt) || 100) * u.grams;
-      mult = g / 100;
-      label = unit === "g" ? `${Math.round(g)} g` : `${amt} ${u.label} (~${Math.round(g)} g)`;
-    } else {
-      mult = Number(qty) || 1;
-      label = `${mult} × ${sel.serving}`;
-    }
-    setIngs(l => [...l, { food: sel, mult, label, id: Date.now() }]);
-    setSel(null); setQ(""); setAmt(100); setUnit("g"); setQty(1); setResults([]);
   };
 
   const totals = useMemo(() => {
     const t = { ...ZERO };
-    for (const i of ings) for (const k of KEYS) t[k] += (i.food[k] || 0) * i.mult;
+    for (const m of matched) for (const k of KEYS) t[k] += (m.food[k] || 0) * m.mult;
     return t;
-  }, [ings]);
-
-  const n = Math.max(1, Number(servings) || 1);
-  const per = {};
-  for (const k of KEYS) per[k] = totals[k] / n;
-
-  const saveRecipe = async () => {
-    if (!name.trim() || ings.length === 0) { setMsg("Give the recipe a name and at least one ingredient."); return; }
-    const food = { ...per, name: name.trim(), serving: "1 serving", isRecipe: true };
-    const next = { ...recipes, [name.trim()]: { name: name.trim(), servings: n, food, link: link.trim() || null, ingredients: ings.map(i => `${i.food.name} — ${i.label}`) } };
-    setRecipes(next);
-    const where = await saveStore(storageKey, next);
-    setMsg(where === "memory" ? "Recipe saved for this session only." : `Saved "${name.trim()}".`);
-    setName(""); setLink(""); setIngs([]); setServings(4);
-    setTimeout(() => setMsg(""), 4000);
-  };
-
-  const deleteRecipe = async (rname) => {
-    const next = { ...recipes };
-    delete next[rname];
-    setRecipes(next);
-    await saveStore(storageKey, next);
-  };
-
-  const savedList = Object.values(recipes);
-
-  const perRow = (label, v, unitLabel, dp = 0) => (
-    <tr style={{ borderTop: `1px solid ${C.rule}` }}>
-      <td style={{ padding: "6px 4px" }}>{label}</td>
-      <td className="na-mono" style={{ padding: "6px 4px", textAlign: "right" }}>{v.toFixed(dp)} {unitLabel}</td>
-    </tr>
-  );
+  }, [matched]);
 
   return (
-    <>
-      <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
-        <SectionHead title="Recipe builder" sub="Add a homemade dish's ingredients to compute its nutrients per serving. Save it once, then log servings from the list below." />
+    <section className="na-panel" style={{ padding: "18px 20px 20px", borderLeft: `3px solid ${C.accent}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+        <h2 className="na-serif" style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+          Import from Citrus&Spice: {req.title}
+        </h2>
+        <button className="na-btn na-btn-quiet" onClick={onCancel} style={{ padding: "5px 12px" }}>Cancel</button>
+      </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 16 }}>
-          <Field label="Recipe name">
-            <input className="na-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Mom's lentil soup" />
-          </Field>
-          <Field label="Servings the recipe makes">
-            <input className="na-input" type="number" min="1" value={servings} onChange={e => setServings(e.target.value)} />
-          </Field>
-          <Field label="Ingredient source">
-            <select className="na-select" value={src} onChange={e => { setSrc(e.target.value); setSel(null); setResults([]); setErr(""); }}>
-              <option value="usda">USDA FoodData Central</option>
-              <option value="local">Built-in quick list</option>
-            </select>
-          </Field>
-          <Field label="Link to recipe page (optional)" note="Open a recipe on Citrus&Spice, tap Copy Link, and paste it here.">
-            <input className="na-input" type="url" value={link} onChange={e => setLink(e.target.value)} placeholder="https://…#recipe-…" />
-          </Field>
-        </div>
+      {!done ? (
+        <>
+          <p className="na-mono" style={{ margin: "0 0 4px", fontSize: 12, color: C.faint }}>
+            Ingredient {idx + 1} of {lines.length} · {matched.length} matched
+          </p>
+          <p style={{ margin: "0 0 12px", fontSize: 14.5, fontWeight: 600 }}>“{line}”</p>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div style={{ flex: "1 1 200px", position: "relative" }}>
-            <Field label="Ingredient">
-              <input className="na-input" value={sel ? sel.name : q} placeholder="e.g. lentils, olive oil…"
-                onChange={e => { setSel(null); setQ(e.target.value); }}
-                onKeyDown={e => { if (e.key === "Enter" && src === "usda") runSearch(); }} />
-            </Field>
-            {src === "local" && localMatches.length > 0 && !sel && (
-              <ul style={{ position: "absolute", zIndex: 5, left: 0, right: 0, top: "100%", margin: 0, padding: 0, listStyle: "none", background: "#fff", border: `1px solid ${C.rule}`, borderTop: "none", boxShadow: "0 6px 16px rgba(24,36,48,0.12)" }}>
-                {localMatches.map(f => (
-                  <li key={f.name}>
-                    <button onClick={() => { setSel(f); setQ(""); }}
-                      style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 10px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
-                      <span>{f.name}</span>
-                      <span className="na-mono" style={{ color: C.faint, fontSize: 12 }}>{f.serving}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          {src === "usda" && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 200px" }}>
+              <Field label="Match to food">
+                <input className="na-input" value={sel ? sel.name : q}
+                  onChange={e => { setSel(null); setQ(e.target.value); }}
+                  onKeyDown={e => { if (e.key === "Enter") runSearch(); }} />
+              </Field>
+            </div>
             <button className="na-btn na-btn-quiet" onClick={runSearch} disabled={busy || !q.trim()} style={{ opacity: busy || !q.trim() ? 0.5 : 1 }}>
-              {busy ? "Searching…" : "Search"}
+              {busy ? "Searching…" : "Search USDA"}
             </button>
+            <div style={{ width: 180 }}>
+              {sel && !sel.per100g ? (
+                <Field label="Servings of item">
+                  <input className="na-input" type="number" min="0.25" step="0.25" value={qty} onChange={e => setQty(e.target.value)} />
+                </Field>
+              ) : (
+                <Field label="Amount">
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input className="na-input" type="number" min="0" step="any" value={amt} onChange={e => setAmt(e.target.value)} />
+                    <select className="na-select" style={{ width: 80 }} value={unit} onChange={e => setUnit(e.target.value)}>
+                      {Object.entries(UNITS).map(([k, u]) => <option key={k} value={k}>{u.label}</option>)}
+                    </select>
+                  </div>
+                </Field>
+              )}
+            </div>
+            <button className="na-btn" onClick={confirm} disabled={!sel} style={{ opacity: sel ? 1 : 0.45 }}>Confirm match</button>
+            <button className="na-btn na-btn-quiet" onClick={() => advance(null)}>Skip line</button>
+          </div>
+
+          {err && <p role="alert" style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: C.high }}>{err}</p>}
+
+          {(results.length > 0 || localMatches.length > 0) && !sel && (
+            <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0, border: `1px solid ${C.rule}`, borderRadius: 10, maxHeight: 200, overflowY: "auto" }}>
+              {results.map((f, i) => (
+                <li key={"u" + i} style={{ borderTop: i ? `1px solid ${C.rule}` : "none" }}>
+                  <button onClick={() => setSel(f)}
+                    style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
+                    <span>{f.name}</span>
+                    <span className="na-mono" style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}>{Math.round(f.kcal)} kcal / 100 g</span>
+                  </button>
+                </li>
+              ))}
+              {results.length === 0 && localMatches.map((f, i) => (
+                <li key={"l" + i} style={{ borderTop: i ? `1px solid ${C.rule}` : "none" }}>
+                  <button onClick={() => setSel(f)}
+                    style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
+                    <span>{f.name}</span>
+                    <span className="na-mono" style={{ color: C.faint, fontSize: 12 }}>{f.serving} · quick list</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
-          <div style={{ width: 190 }}>
-            {sel && sel.per100g ? (
-              <Field label="Amount">
-                <div style={{ display: "flex", gap: 6 }}>
-                  <input className="na-input" type="number" min="0" step="any" value={amt} onChange={e => setAmt(e.target.value)} />
-                  <select className="na-select" style={{ width: 82 }} value={unit} onChange={e => setUnit(e.target.value)}>
-                    {Object.entries(UNITS).map(([k, u]) => <option key={k} value={k}>{u.label}</option>)}
-                  </select>
-                </div>
+        </>
+      ) : (
+        <>
+          <p style={{ margin: "0 0 12px", fontSize: 13.5 }}>
+            Matched {matched.length} of {lines.length} ingredients · recipe total ≈ {Math.round(totals.kcal)} kcal.
+            {matched.length < lines.length && " Skipped lines are not counted, so totals may run low."}
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ width: 150 }}>
+              <Field label="Servings recipe makes">
+                <input className="na-input" type="number" min="1" value={servingsMade} onChange={e => setServingsMade(e.target.value)} />
               </Field>
-            ) : (
-              <Field label="Servings of item">
-                <input className="na-input" type="number" min="0.25" step="0.25" value={qty} onChange={e => setQty(e.target.value)} />
+            </div>
+            <div style={{ width: 150 }}>
+              <Field label="Servings I ate">
+                <input className="na-input" type="number" min="0.5" step="0.5" value={servingsEaten} onChange={e => setServingsEaten(e.target.value)} />
               </Field>
-            )}
-          </div>
-          <button className="na-btn" onClick={addIngredient} disabled={!sel} style={{ opacity: sel ? 1 : 0.45 }}>
-            Add ingredient
-          </button>
-        </div>
-
-        {err && <p role="alert" style={{ marginTop: 12, marginBottom: 0, fontSize: 13, color: C.high }}>{err}</p>}
-
-        {results.length > 0 && !sel && (
-          <ul style={{ listStyle: "none", margin: "12px 0 0", padding: 0, border: `1px solid ${C.rule}`, borderRadius: 3, maxHeight: 220, overflowY: "auto" }}>
-            {results.map((f, i) => (
-              <li key={i} style={{ borderTop: i ? `1px solid ${C.rule}` : "none" }}>
-                <button onClick={() => { setSel(f); setResults([]); }}
-                  style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "10px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
-                  <span>{f.name}</span>
-                  <span className="na-mono" style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}>{Math.round(f.kcal)} kcal / 100 g</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {ings.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, marginTop: 20 }}>
-            <div>
-              <h3 className="na-eyebrow" style={{ margin: "0 0 6px" }}>Ingredients</h3>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <tbody>
-                  {ings.map(i => (
-                    <tr key={i.id} style={{ borderTop: `1px solid ${C.rule}` }}>
-                      <td style={{ padding: "7px 4px" }}>{i.food.name} <span style={{ color: C.faint, fontSize: 12 }}>({i.label})</span></td>
-                      <td style={{ padding: "7px 4px", textAlign: "right" }}>
-                        <button onClick={() => setIngs(l => l.filter(x => x.id !== i.id))}
-                          aria-label={`Remove ${i.food.name}`}
-                          style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 13 }}>
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
-            <div>
-              <h3 className="na-eyebrow" style={{ margin: "0 0 6px" }}>Per serving ({n} servings)</h3>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <tbody>
-                  {perRow("Energy", per.kcal, "kcal")}
-                  {perRow("Protein", per.protein, "g", 1)}
-                  {perRow("Carbohydrate", per.carb, "g", 1)}
-                  {perRow("Fat", per.fat, "g", 1)}
-                  {perRow("Fiber", per.fiber, "g", 1)}
-                  {perRow("Calcium", per.calcium, "mg")}
-                  {perRow("Iron", per.iron, "mg", 1)}
-                  {perRow("Potassium", per.potassium, "mg")}
-                  {perRow("Sodium", per.sodium, "mg")}
-                  {perRow("Vitamin C", per.vitC, "mg")}
-                  {perRow("Vitamin D", per.vitD, "mcg", 1)}
-                </tbody>
-              </table>
-            </div>
+            <button className="na-btn" disabled={matched.length === 0} style={{ opacity: matched.length ? 1 : 0.45 }}
+              onClick={() => onComplete({
+                title: req.title, link: req.link || null, matched, totals,
+                servingsMade: Math.max(1, Number(servingsMade) || 1),
+                servingsEaten: Number(servingsEaten) || 1,
+              })}>
+              Save recipe & log
+            </button>
           </div>
-        )}
-
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 18 }}>
-          <button className="na-btn" onClick={saveRecipe}>Save recipe</button>
-          {msg && <span className="na-mono" style={{ fontSize: 12.5, color: C.ok }}>{msg}</span>}
-        </div>
-      </section>
-
-      <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
-        <SectionHead title="Saved recipes" sub="Log servings straight to today's intake report." />
-        {savedList.length === 0 ? (
-          <p style={{ fontSize: 13.5, color: C.faint, margin: 0 }}>No saved recipes yet — build one above.</p>
-        ) : (
-          <div style={{ display: "grid", gap: 12 }}>
-            {savedList.map(r => (
-              <div key={r.name} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 3, padding: "12px 14px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
-                  <h3 className="na-serif" style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                    {r.name}
-                    {r.link && (
-                      <a href={r.link} target="_top" rel="noopener"
-                        style={{ marginLeft: 10, fontSize: 12.5, fontFamily: "'Inter', sans-serif", fontWeight: 500, color: C.accent, textDecoration: "none", borderBottom: `1px solid ${C.accent}` }}>
-                        View recipe ↗
-                      </a>
-                    )}
-                  </h3>
-                  <span className="na-mono" style={{ fontSize: 12, color: C.faint }}>
-                    {Math.round(r.food.kcal)} kcal · {r.food.protein.toFixed(0)} g protein / serving
-                  </span>
-                </div>
-                <p style={{ margin: "6px 0 10px", fontSize: 12.5, color: C.faint, lineHeight: 1.5 }}>{r.ingredients.join(" · ")}</p>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <input className="na-input" type="number" min="0.5" step="0.5" style={{ width: 80 }}
-                    value={logCounts[r.name] ?? 1}
-                    onChange={e => setLogCounts(s => ({ ...s, [r.name]: e.target.value }))}
-                    aria-label={`Servings of ${r.name} to log`} />
-                  <button className="na-btn" onClick={() => onLogServings(r.food, Number(logCounts[r.name]) || 1)}>
-                    Log serving(s)
-                  </button>
-                  <button className="na-btn na-btn-quiet" onClick={() => deleteRecipe(r.name)} style={{ color: C.high, borderColor: C.rule }}>
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -1148,9 +1088,52 @@ export default function NutritionAssessment() {
     setCurrentUser(name);
   };
 
+  const [importReq, setImportReq] = useState(null);
+
+  useEffect(() => {
+    const check = () => {
+      try {
+        const v = window.localStorage.getItem("cs-nutrition-import");
+        if (v) {
+          setImportReq(JSON.parse(v));
+          window.localStorage.removeItem("cs-nutrition-import");
+          setTab("report");
+        }
+      } catch (e) { /* storage unavailable */ }
+    };
+    check();
+    const onMsg = (e) => {
+      if (e.data && e.data.type === "cs-recipe-import" && Array.isArray(e.data.ingredients)) {
+        setImportReq(e.data);
+        setTab("report");
+      }
+    };
+    window.addEventListener("message", onMsg);
+    window.addEventListener("focus", check);
+    return () => { window.removeEventListener("message", onMsg); window.removeEventListener("focus", check); };
+  }, []);
+
   const logRecipeServings = (food, count) => {
     setLog(l => [...l, { food, qty: count, label: `${count} serving${count !== 1 ? "s" : ""}`, id: Date.now() }]);
     setTab("report");
+  };
+
+  const completeImport = async ({ title, link, matched, totals: rTotals, servingsMade, servingsEaten }) => {
+    const per = {};
+    for (const k of KEYS) per[k] = rTotals[k] / servingsMade;
+    const food = { ...per, name: title, serving: "1 serving", isRecipe: true };
+    const next = { ...recipes, [title]: { name: title, servings: servingsMade, food, link, ingredients: matched.map(m => `${m.food.name} — ${m.label}`) } };
+    setRecipes(next);
+    await saveStore(userKey(RKEY, currentUser), next);
+    setLog(l => [...l, { food, qty: servingsEaten, label: `${servingsEaten} serving${servingsEaten !== 1 ? "s" : ""}`, id: Date.now() }]);
+    setImportReq(null);
+  };
+
+  const deleteSavedRecipe = async (rname) => {
+    const next = { ...recipes };
+    delete next[rname];
+    setRecipes(next);
+    await saveStore(userKey(RKEY, currentUser), next);
   };
 
   const targets = useMemo(() => computeTargets(profile), [profile]);
@@ -1288,9 +1271,8 @@ export default function NutritionAssessment() {
   const embedded = typeof window !== "undefined" && window.self !== window.top;
 
   const TABS = [
-    ["report", "Nutrition report"],
-    ["recipes", "My recipes"],
-    ["reference", "Nutrient reference"],
+    ["report", "Report"],
+    ["reference", "Nutrients"],
     ["history", "History"],
     ["fitness", "Fitness"],
   ];
@@ -1302,14 +1284,11 @@ export default function NutritionAssessment() {
       <header style={{ background: C.paper, borderBottom: `1px solid ${C.rule}`, padding: embedded ? "0 20px" : "18px 20px 0" }}>
         <div style={{ maxWidth: 860, margin: "0 auto" }}>
           {!embedded && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span aria-hidden style={{ color: C.accent, fontSize: 22, display: "inline-block", transform: "rotate(-12deg)" }}>✺</span>
-              <div>
-                <h1 className="na-serif" style={{ margin: 0, fontSize: 24, fontWeight: 500, fontStyle: "italic", lineHeight: 1.15 }}>
-                  Citrus&Spice
-                </h1>
-                <div className="na-eyebrow" style={{ marginTop: 1 }}>Nutrition Tracker</div>
-              </div>
+            <div>
+              <h1 className="na-serif" style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.15 }}>
+                Nutrient Tracker
+              </h1>
+              <div className="na-eyebrow" style={{ marginTop: 2 }}>Daily intake, history & fitness</div>
             </div>
           )}
           <nav role="tablist" style={{ display: "flex", gap: 4, marginTop: embedded ? 0 : 10, overflowX: "auto" }}>
@@ -1325,12 +1304,12 @@ export default function NutritionAssessment() {
       <main style={{ maxWidth: 860, margin: "0 auto", padding: "26px 20px 40px", display: "grid", gap: 26 }}>
 
         {tab === "reference" && <ReferenceTab targets={targets} />}
-        {tab === "recipes" && <RecipeBuilderTab recipes={recipes} setRecipes={setRecipes} onLogServings={logRecipeServings} storageKey={userKey(RKEY, currentUser)} />}
         {tab === "history" && <HistoryTab history={history} onDeleteDay={deleteHistoryDay} />}
         {tab === "fitness" && <FitnessTab profile={profile} />}
 
         {tab === "report" && (
           <>
+            {importReq && <RecipeImport req={importReq} onCancel={() => setImportReq(null)} onComplete={completeImport} />}
             {/* ---------- Person switcher ---------- */}
             <section className="na-panel" style={{ padding: "14px 18px", display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
               <div style={{ width: 180 }}>
@@ -1430,10 +1409,55 @@ export default function NutritionAssessment() {
                       onChange={e => { setSource(e.target.value); setSelected(null); setUsdaResults([]); setSearchError(""); }}>
                       <option value="usda">USDA FoodData Central</option>
                       <option value="local">Built-in quick list</option>
+                      <option value="recipes">My saved recipes</option>
                     </select>
                   </Field>
                 </div>
               </div>
+
+              {source === "recipes" && (
+                Object.keys(recipes).length === 0 ? (
+                  <p style={{ margin: "4px 0 12px", fontSize: 13, color: C.faint }}>
+                    No saved recipes yet. Open a recipe on the Citrus&Spice tabs and tap
+                    "Log to Nutrition" to bring it over with its macros.
+                  </p>
+                ) : (
+                  <div style={{ display: "grid", gap: 10, margin: "4px 0 14px" }}>
+                    {Object.values(recipes).map(r => (
+                      <div key={r.name} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 10, padding: "10px 14px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
+                          <span className="na-serif" style={{ fontSize: 15.5, fontWeight: 700 }}>
+                            {r.name}
+                            {r.link && (
+                              <a href={r.link} target="_top" rel="noopener"
+                                style={{ marginLeft: 10, fontSize: 12, fontFamily: "'Inter', sans-serif", fontWeight: 500, color: C.accent, textDecoration: "none", borderBottom: `1px solid ${C.accent}` }}>
+                                View recipe ↗
+                              </a>
+                            )}
+                          </span>
+                          <span className="na-mono" style={{ fontSize: 12, color: C.faint }}>
+                            {Math.round(r.food.kcal)} kcal · {r.food.protein.toFixed(0)} g protein / serving
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+                          <input className="na-input" type="number" min="0.5" step="0.5" defaultValue={1} style={{ width: 74 }}
+                            id={`rq-${r.name.replace(/\W/g, "_")}`} aria-label={`Servings of ${r.name}`} />
+                          <button className="na-btn" style={{ padding: "7px 14px" }}
+                            onClick={() => {
+                              const el = document.getElementById(`rq-${r.name.replace(/\W/g, "_")}`);
+                              logRecipeServings(r.food, Number(el && el.value) || 1);
+                            }}>
+                            Log serving(s)
+                          </button>
+                          <button className="na-btn na-btn-quiet" style={{ padding: "7px 14px", color: C.high }} onClick={() => deleteSavedRecipe(r.name)}>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
                 <div style={{ flex: "1 1 220px", position: "relative" }}>
