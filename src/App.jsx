@@ -388,8 +388,8 @@ const SAMPLE_DAY = [RECIPES[6], RECIPES[4], RECIPES[0]]; // breakfast, lunch, di
 /* ------------------------------------------------------------------ */
 
 const PUSHUP_NORMS = {
-  male: { "20-29": [17, 22, 29, 36], "30-39": [12, 17, 22, 30], "40-49": [10, 13, 17, 25], "50-59": [7, 10, 13, 21], "60-69": [5, 8, 11, 18] },
-  female: { "20-29": [10, 15, 21, 30], "30-39": [8, 13, 20, 27], "40-49": [5, 11, 15, 24], "50-59": [2, 7, 11, 21], "60-69": [2, 5, 12, 17] },
+  standard: { "20-29": [17, 22, 29, 36], "30-39": [12, 17, 22, 30], "40-49": [10, 13, 17, 25], "50-59": [7, 10, 13, 21], "60-69": [5, 8, 11, 18] },
+  modified: { "20-29": [10, 15, 21, 30], "30-39": [8, 13, 20, 27], "40-49": [5, 11, 15, 24], "50-59": [2, 7, 11, 21], "60-69": [2, 5, 12, 17] },
 };
 
 const CHAIR_STAND_MIN = { // CDC STEADI: "below average" if under this many stands in 30s
@@ -407,9 +407,9 @@ function ageBand(age, bands) {
   return null;
 }
 
-function ratePushups(age, sex, reps) {
-  const table = PUSHUP_NORMS[sex];
-  if (!table) return { rating: null, note: "Select male or female to use the ACSM reference table." };
+function ratePushups(age, style, reps) {
+  const table = PUSHUP_NORMS[style];
+  if (!table) return { rating: null, note: "Choose standard or modified to score against the reference table." };
   const band = ageBand(age, Object.keys(table));
   if (!band) return { rating: null, note: "Reference data covers ages 20–69." };
   const [fair, good, vgood, exc] = table[band];
@@ -445,6 +445,7 @@ const PKEY = "nutrition-profile-v1";
 const UKEY = "nutrition-users-v1";
 const BKEY = "nutrition-barcodes-v1";
 const CKEY = "nutrition-custom-nutrients-v1";
+const VKEY = "nutrition-ui-v1";
 
 // Namespace stored data per person so several people can log on one device.
 // "Me" is the default, unnamed profile. Keys must not contain whitespace.
@@ -593,6 +594,92 @@ const FLAG_ALTERNATIVES = {
   "Added-sugar ingredients": ALT_SUGAR,
   "Non-sugar sweeteners": ALT_SWEETENERS,
 };
+
+
+/* ------------------------------------------------------------------ */
+/*  Meal-pattern tips — foods whose main concern is the overall       */
+/*  pattern (sodium, refined carbs, few vegetables) rather than any   */
+/*  single watchlist additive. Matched by product name. Tone:         */
+/*  crave-friendly boosts and swaps, never guilt.                     */
+/* ------------------------------------------------------------------ */
+
+const MEAL_PATTERNS = [
+  { match: ["instant ramen", "ramen", "instant noodle", "cup noodle", "cup of noodle", "udon bowl"],
+    title: "Craving a brothy, carby bowl?",
+    text: "Instant noodles' real watch-outs are sodium (often 1,500+ mg per packet, mostly in the seasoning) and the missing vegetables — not a scary additive.",
+    tips: ["Use half (or less) of the seasoning packet", "Drop in an egg, frozen veggies, spinach, or leftover chicken while it cooks", "Add fruit or a side salad for the nutrient boost"],
+    searches: ["easy homemade ramen broth", "miso soup with noodles recipe", "15 minute pho recipe"] },
+  { match: ["hot dog", "frankfurter", "bologna", "deli ham", "lunch meat", "luncheon"],
+    title: "Craving cured or deli meats?",
+    text: "Traditional dry-cured versions (Spanish jamón, Prosciutto di Parma) often skip curing additives, though they cost more — if that's not practical, keeping portions and frequency modest matters most.",
+    tips: ["Pile the sandwich with vegetables to shift the ratio", "Roast a chicken or turkey breast on the weekend for the week's sandwiches"],
+    searches: ["homemade beef jerky oven", "roast turkey breast for sandwiches"] },
+  { match: ["soda", "cola", "energy drink", "sports drink"],
+    title: "Craving something cold and sweet?",
+    text: "The concern here is simply added sugar (and caffeine in energy drinks), which adds up fast in liquid form.",
+    tips: ["Try sparkling water with fruit or a splash of juice", "A smaller can of the real thing beats forcing a swap you hate"],
+    searches: ["homemade soda syrup recipe", "agua fresca recipes"] },
+  { match: ["potato chips", "crisps", "tortilla chips", "cheese puff"],
+    title: "Craving salty and crunchy?",
+    text: "Chips are mostly a sodium-and-portion story — the bag decides the serving unless you do.",
+    tips: ["Portion into a bowl instead of eating from the bag", "Nuts, popcorn, or roasted chickpeas scratch the same itch with more nutrients"],
+    searches: ["air fryer potato chips recipe", "crispy roasted chickpeas recipe"] },
+  { match: ["frozen pizza", "pizza rolls"],
+    title: "Craving pizza night?",
+    text: "Frozen pizza's gaps are vegetables and fiber more than anything sinister on the label.",
+    tips: ["Top it with spinach, peppers, or mushrooms before baking — they roast right on it", "A side salad turns it into a rounded meal"],
+    searches: ["2 ingredient pizza dough recipe", "sheet pan pizza homemade"] },
+  { match: ["frosted", "sugary cereal", "cocoa cereal", "fruit loops", "froot"],
+    title: "Craving a sweet breakfast?",
+    text: "Sweetened cereals front-load added sugar with little protein to steady you.",
+    tips: ["Mix half-and-half with a plain cereal or oats", "Pair with Greek yogurt or milk and fruit so it holds you until lunch"],
+    searches: ["overnight oats recipes", "homemade granola low sugar"] },
+  { match: ["mac and cheese", "macaroni and cheese", "instant mac"],
+    title: "Craving creamy comfort carbs?",
+    text: "Boxed mac's main gaps are protein and vegetables — easy to patch without losing the comfort.",
+    tips: ["Stir in frozen peas or broccoli in the last minutes of boiling", "Add tuna, rotisserie chicken, or white beans for protein"],
+    searches: ["stovetop mac and cheese one pot", "butternut squash mac and cheese"] },
+];
+
+function matchMealPattern(name) {
+  const n = (name || "").toLowerCase();
+  return MEAL_PATTERNS.find(mp => mp.match.some(k => n.includes(k))) || null;
+}
+
+function MealPatternTips({ food }) {
+  const mp = matchMealPattern(food.name);
+  const salty = food.per100g && food.sodium > 500;
+  if (!mp && !salty) return null;
+  return (
+    <div style={{ marginTop: 12, padding: "12px 14px", background: "#eef0e4", border: `1px solid ${C.rule}`, borderRadius: 10 }}>
+      {mp && (
+        <>
+          <p style={{ margin: "0 0 6px", fontSize: 13, lineHeight: 1.55 }}>
+            <strong>{mp.title}</strong> {mp.text}
+          </p>
+          <ul style={{ margin: "0 0 6px", paddingLeft: 18, fontSize: 12.5, lineHeight: 1.55 }}>
+            {mp.tips.map(t => <li key={t}>{t}</li>)}
+          </ul>
+          <p style={{ margin: 0, fontSize: 12, color: C.faint }}>
+            Make-it-yourself searches:{" "}
+            {mp.searches.map((q, i) => (
+              <React.Fragment key={q}>
+                <a href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noopener"
+                  style={{ color: C.accent, textDecoration: "none", borderBottom: `1px solid ${C.accent}` }}>{q}</a>
+                {i < mp.searches.length - 1 ? " · " : ""}
+              </React.Fragment>
+            ))}
+          </p>
+        </>
+      )}
+      {salty && (
+        <p style={{ margin: mp ? "8px 0 0" : 0, fontSize: 12, color: "#7a5210" }}>
+          Salty pick: {Math.round(food.sodium)} mg sodium per 100 g — the gauge below tracks it against the 2,300 mg daily limit.
+        </p>
+      )}
+    </div>
+  );
+}
 
 function analyzeIngredients(text) {
   if (!text) return [];
@@ -813,8 +900,14 @@ function RecipeCard({ recipe, deficits }) {
 
 function BarcodeScanner({ onDetect, onClose }) {
   const videoRef = useRef(null);
+  const panelRef = useRef(null);
   const [camError, setCamError] = useState("");
   const [manual, setManual] = useState("");
+
+  // Bring the camera into view — on phones it otherwise opens below the fold.
+  useEffect(() => {
+    if (panelRef.current) panelRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -854,14 +947,19 @@ function BarcodeScanner({ onDetect, onClose }) {
   }, [onDetect]);
 
   return (
-    <div style={{ marginTop: 16, padding: 14, background: C.paper, border: `1px dashed ${C.rule}`, borderRadius: 3 }}>
+    <div ref={panelRef} style={{ marginTop: 16, padding: 14, background: C.paper, border: `1px dashed ${C.rule}`, borderRadius: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <span className="na-eyebrow">Scan a product barcode</span>
         <button className="na-btn na-btn-quiet" onClick={onClose} style={{ padding: "5px 10px" }}>Close</button>
       </div>
       {!camError ? (
-        <video ref={videoRef} muted playsInline
-          style={{ width: "100%", maxHeight: 260, background: "#000", borderRadius: 3, objectFit: "cover" }} />
+        <>
+          <video ref={videoRef} muted playsInline
+            style={{ width: "100%", maxHeight: 260, background: "#000", borderRadius: 8, objectFit: "cover" }} />
+          <p className="na-mono" style={{ margin: "8px 0 0", fontSize: 12, color: C.accent, fontWeight: 500 }}>
+            ● Camera active — center the barcode in view. It scans automatically.
+          </p>
+        </>
       ) : (
         <p style={{ fontSize: 13, color: C.low, margin: "0 0 10px" }}>{camError}</p>
       )}
@@ -1237,12 +1335,12 @@ function HistoryTab({ history, onDeleteDay }) {
 /* ------------------------------------------------------------------ */
 
 function FitnessTab({ profile }) {
-  const [f, setF] = useState({ pushups: "", plank: "", reach: "", chair: "" });
+  const [f, setF] = useState({ pushups: "", style: "", plank: "", reach: "", chair: "" });
   const age = Number(profile.age) || null;
   const sex = profile.sex;
   const set = (k) => (e) => setF(s => ({ ...s, [k]: e.target.value }));
 
-  const pushupResult = f.pushups !== "" && age ? ratePushups(age, sex, Number(f.pushups)) : null;
+  const pushupResult = f.pushups !== "" && age && f.style ? ratePushups(age, f.style, Number(f.pushups)) : null;
   const plankResult = f.plank !== "" ? ratePlank(Number(f.plank)) : null;
   const reachResult = f.reach ? REACH_OPTIONS.find(o => o.v === f.reach) : null;
   const chairBand = age && age >= 60 && (sex === "male" || sex === "female")
@@ -1268,17 +1366,33 @@ function FitnessTab({ profile }) {
         <div>
           <h3 className="na-serif" style={{ margin: "0 0 4px", fontSize: 16.5, color: C.navy }}>Push-ups (max consecutive)</h3>
           <p style={{ margin: "0 0 10px", fontSize: 13, color: C.faint, lineHeight: 1.55 }}>
-            Men: standard push-ups. Women: modified (knee) push-ups, per the reference protocol.
-            Scored against ACSM/CSEP normative tables, ages 20–69.
+            Do whichever style suits you — standard (on toes) or modified (on knees) —
+            and pick it below. Scored against ACSM/CSEP normative tables, ages 20–69.
           </p>
-          <div style={{ maxWidth: 180 }}>
-            <Field label="Reps completed"><input className="na-input" type="number" min="0" value={f.pushups} onChange={set("pushups")} /></Field>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ width: 190 }}>
+              <Field label="Push-up style">
+                <select className="na-select" value={f.style || ""} onChange={set("style")}>
+                  <option value="">Select…</option>
+                  <option value="standard">Standard (on toes)</option>
+                  <option value="modified">Modified (on knees)</option>
+                </select>
+              </Field>
+            </div>
+            <div style={{ width: 150 }}>
+              <Field label="Reps completed"><input className="na-input" type="number" min="0" value={f.pushups} onChange={set("pushups")} /></Field>
+            </div>
           </div>
           {pushupResult && (pushupResult.rating ? (
             <p style={{ fontSize: 14, marginBottom: 0 }}>
-              Rating for {sex}, {pushupResult.band}: <strong style={{ color: ratingColor(pushupResult.rating) }}>{pushupResult.rating}</strong>
+              Rating for {f.style} push-ups, ages {pushupResult.band}: <strong style={{ color: ratingColor(pushupResult.rating) }}>{pushupResult.rating}</strong>
               <span className="na-mono" style={{ fontSize: 12, color: C.faint, marginLeft: 10 }}>
                 (fair ≥{pushupResult.thresholds[0]} · good ≥{pushupResult.thresholds[1]} · very good ≥{pushupResult.thresholds[2]} · excellent ≥{pushupResult.thresholds[3]})
+              </span>
+              <span style={{ display: "block", fontSize: 11, color: C.faint, marginTop: 3 }}>
+                Note: the published tables were normed on standard and modified protocols
+                separately, so the style you pick determines the reference — ratings
+                across styles aren't directly comparable.
               </span>
             </p>
           ) : <p style={{ fontSize: 13, color: C.low, marginBottom: 0 }}>{pushupResult.note}</p>)}
@@ -1408,13 +1522,15 @@ export default function NutritionAssessment() {
   useEffect(() => {
     hydrated.current = false;
     (async () => {
-      const [h, r, p, b, c] = await Promise.all([
+      const [h, r, p, b, c, v] = await Promise.all([
         loadStore(userKey(HKEY, currentUser)),
         loadStore(userKey(RKEY, currentUser)),
         loadStore(userKey(PKEY, currentUser)),
         loadStore(userKey(BKEY, currentUser)),
         loadStore(userKey(CKEY, currentUser)),
+        loadStore(userKey(VKEY, currentUser)),
       ]);
+      setProfileOpen(!(v && v.profileOpen === false));
       setHistory(h || {});
       setRecipes(r || {});
       setBarcodes(b || {});
@@ -1593,20 +1709,21 @@ export default function NutritionAssessment() {
 
   const handleBarcode = async (code) => {
     setShowScanner(false);
+    try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) {}
     const known = barcodes[code];
     if (known) {
       setSelected(known.food); setQuery(""); setUsdaResults([]);
-      setScanStatus(`From your scanned items: ${known.food.name}. Set the amount, then add to log.`);
+      setScanStatus(`✓ Scan successful (${code}) — from your saved items: ${known.food.name}. Set the amount, then add to log.`);
       const next = { ...barcodes, [code]: { ...known, lastUsed: Date.now() } };
       setBarcodes(next);
       saveStore(userKey(BKEY, currentUser), next);
       return;
     }
-    setScanStatus(`Looking up barcode ${code}…`);
+    setScanStatus(`✓ Scan successful (${code}) — looking up the product…`);
     try {
       const food = await lookupBarcode(code);
       setSelected(food); setQuery(""); setUsdaResults([]);
-      setScanStatus(`Found: ${food.name}. Set the amount, then add to log. Saved to your scanned items for next time.`);
+      setScanStatus(`✓ Found: ${food.name}. Set the amount, then add to log. Saved to your scanned items for next time.`);
       const next = { ...barcodes, [code]: { code, food, lastUsed: Date.now() } };
       setBarcodes(next);
       await saveStore(userKey(BKEY, currentUser), next);
@@ -1783,7 +1900,11 @@ export default function NutritionAssessment() {
                   {profileOpen && <p style={{ margin: "3px 0 0", fontSize: 13, color: C.faint }}>Optional. Unanswered fields fall back to general adult reference values.</p>}
                 </div>
                 <button className="na-btn na-btn-quiet" aria-expanded={profileOpen}
-                  onClick={() => setProfileOpen(o => !o)} style={{ padding: "5px 12px", flexShrink: 0 }}>
+                  onClick={() => setProfileOpen(o => {
+                    const nv = !o;
+                    saveStore(userKey(VKEY, currentUser), { profileOpen: nv });
+                    return nv;
+                  })} style={{ padding: "5px 12px", flexShrink: 0 }}>
                   {profileOpen ? "Hide" : "Show"}
                 </button>
               </div>
@@ -1985,6 +2106,7 @@ export default function NutritionAssessment() {
               {scanStatus && <p className="na-mono" style={{ marginTop: 12, marginBottom: 0, fontSize: 12.5, color: C.ok }}>{scanStatus}</p>}
               {bonusMsg && <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: C.ok, fontWeight: 600 }}>{bonusMsg}</p>}
               {selected && selected.ingredients && <IngredientCheck text={selected.ingredients} />}
+              {selected && <MealPatternTips food={selected} />}
 
               {searchError && <p role="alert" style={{ marginTop: 12, marginBottom: 0, fontSize: 13, color: C.high }}>{searchError}</p>}
 
