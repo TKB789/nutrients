@@ -380,6 +380,7 @@ const RKEY = "nutrition-recipes-v1";
 const PKEY = "nutrition-profile-v1";
 const UKEY = "nutrition-users-v1";
 const BKEY = "nutrition-barcodes-v1";
+const CKEY = "nutrition-custom-nutrients-v1";
 
 // Namespace stored data per person so several people can log on one device.
 // "Me" is the default, unnamed profile. Keys must not contain whitespace.
@@ -556,7 +557,13 @@ function RecipeCard({ recipe, deficits }) {
   return (
     <div style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 3, padding: "14px 16px", background: "#fff" }}>
       <div className="na-eyebrow" style={{ color: C.accent, marginBottom: 4 }}>{recipe.meal}</div>
-      <h3 className="na-serif" style={{ margin: "0 0 6px", fontSize: 16.5, fontWeight: 700 }}>{recipe.name}</h3>
+      <h3 className="na-serif" style={{ margin: "0 0 6px", fontSize: 16.5, fontWeight: 700 }}>
+        <a href={`https://www.google.com/search?q=${encodeURIComponent(recipe.name + " recipe")}`}
+          target="_blank" rel="noopener"
+          style={{ color: "inherit", textDecoration: "none", borderBottom: `1.5px solid ${C.accent}` }}>
+          {recipe.name} <span aria-hidden style={{ color: C.accent, fontSize: 13 }}>↗</span>
+        </a>
+      </h3>
       <p style={{ margin: "0 0 10px", fontSize: 13.5, lineHeight: 1.55, color: "#33414D" }}>{recipe.desc}</p>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {helps.map(k => (
@@ -1142,11 +1149,12 @@ export default function NutritionAssessment() {
   const [showScanner, setShowScanner] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
   const [bonusMsg, setBonusMsg] = useState("");
-  const [recSearch, setRecSearch] = useState("");
   const [custom, setCustom] = useState({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
   const [history, setHistory] = useState({});
   const [recipes, setRecipes] = useState({});
   const [barcodes, setBarcodes] = useState({});
+  const [customNutrients, setCustomNutrients] = useState({});
+  const [newNutrient, setNewNutrient] = useState({ name: "", unit: "g", target: "" });
   const [saveMsg, setSaveMsg] = useState("");
   const [users, setUsers] = useState(["Me"]);
   const [currentUser, setCurrentUser] = useState("Me");
@@ -1171,15 +1179,17 @@ export default function NutritionAssessment() {
   useEffect(() => {
     hydrated.current = false;
     (async () => {
-      const [h, r, p, b] = await Promise.all([
+      const [h, r, p, b, c] = await Promise.all([
         loadStore(userKey(HKEY, currentUser)),
         loadStore(userKey(RKEY, currentUser)),
         loadStore(userKey(PKEY, currentUser)),
         loadStore(userKey(BKEY, currentUser)),
+        loadStore(userKey(CKEY, currentUser)),
       ]);
       setHistory(h || {});
       setRecipes(r || {});
       setBarcodes(b || {});
+      setCustomNutrients(c || {});
       setProfile(p && p.activity ? p : { age: "", sex: "", weight: "", weightUnit: "lb", height: "", heightUnit: "in", activity: "light" });
       const today = (h || {})[todayKey()];
       setLog(today && Array.isArray(today.items)
@@ -1258,9 +1268,14 @@ export default function NutritionAssessment() {
 
   const totals = useMemo(() => {
     const t = { ...ZERO };
-    for (const item of log) for (const k of KEYS) t[k] += (item.food[k] || 0) * item.qty;
+    const cids = Object.keys(customNutrients);
+    for (const id of cids) t[id] = 0;
+    for (const item of log) {
+      for (const k of KEYS) t[k] += (item.food[k] || 0) * item.qty;
+      for (const id of cids) t[id] += (item.food[id] || 0) * item.qty;
+    }
     return t;
-  }, [log]);
+  }, [log, customNutrients]);
 
   const pctOf = (k) => {
     const target = k === "sodium" ? targets.sodiumLimit : targets[k];
@@ -1268,17 +1283,6 @@ export default function NutritionAssessment() {
   };
 
   const deficits = useMemo(() => TRACKED.filter(k => pctOf(k) < 80), [totals, targets]); // eslint-disable-line
-
-  const recipeResults = useMemo(() => {
-    const q = recSearch.trim().toLowerCase();
-    if (!q) return null;
-    return RECIPES.filter(r =>
-      r.name.toLowerCase().includes(q) ||
-      r.desc.toLowerCase().includes(q) ||
-      r.meal.toLowerCase().includes(q) ||
-      r.richIn.some(k => LABELS[k].toLowerCase().includes(q))
-    );
-  }, [recSearch]);
 
   const recommendations = useMemo(() => {
     if (log.length === 0) return { mode: "plan", recipes: SAMPLE_DAY };
@@ -1356,6 +1360,31 @@ export default function NutritionAssessment() {
     }
   };
 
+  const addCustomNutrient = async () => {
+    const name = newNutrient.name.trim();
+    const target = Number(newNutrient.target);
+    if (!name || !(target > 0)) return;
+    const id = "cn_" + name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+    const next = { ...customNutrients, [id]: { id, name, unit: newNutrient.unit.trim() || "g", target } };
+    setCustomNutrients(next);
+    await saveStore(userKey(CKEY, currentUser), next);
+    setNewNutrient({ name: "", unit: "g", target: "" });
+  };
+
+  const deleteCustomNutrient = async (id) => {
+    const next = { ...customNutrients };
+    delete next[id];
+    setCustomNutrients(next);
+    await saveStore(userKey(CKEY, currentUser), next);
+  };
+
+  const quickLogCustom = (cn, amount) => {
+    const v = Number(amount);
+    if (!(v > 0)) return;
+    const food = { ...ZERO, name: `${cn.name} (manual entry)`, serving: `1 ${cn.unit}`, [cn.id]: 1 };
+    setLog(l => [...l, { food, qty: v, label: `${v} ${cn.unit}`, id: Date.now() }]);
+  };
+
   const deleteBarcode = async (code) => {
     const next = { ...barcodes };
     delete next[code];
@@ -1367,6 +1396,7 @@ export default function NutritionAssessment() {
     if (!custom.name) return;
     const food = { ...ZERO, name: custom.name, serving: "1 serving" };
     for (const k of ["kcal", "protein", "carb", "fat", "fiber", "sodium"]) food[k] = Number(custom[k]) || 0;
+    for (const id of Object.keys(customNutrients)) { const v = Number(custom[id]); if (v > 0) food[id] = v; }
     setLog(l => [...l, { food, qty: 1, id: Date.now() }]);
     setCustom({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
     setShowCustom(false);
@@ -1721,6 +1751,12 @@ export default function NutritionAssessment() {
                       <input className="na-input" type="number" min="0" value={custom[k]} onChange={e => setCustom(c => ({ ...c, [k]: e.target.value }))} />
                     </Field>
                   ))}
+                  {Object.values(customNutrients).map(cn => (
+                    <Field key={cn.id} label={`${cn.name} ${cn.unit}`}>
+                      <input className="na-input" type="number" min="0" step="any" value={custom[cn.id] || ""}
+                        onChange={e => setCustom(c => ({ ...c, [cn.id]: e.target.value }))} />
+                    </Field>
+                  ))}
                   <div style={{ alignSelf: "end" }}><button className="na-btn" onClick={addCustom}>Add item</button></div>
                 </div>
               )}
@@ -1839,39 +1875,78 @@ export default function NutritionAssessment() {
                   </p>
                 </>
               )}
+
+              {/* ---------- Custom tracked nutrients ---------- */}
+              <div className="na-eyebrow" style={{ margin: "14px 0 2px" }}>Your custom nutrients</div>
+              {Object.keys(customNutrients).length === 0 && (
+                <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 10px" }}>
+                  Track anything the standard panel doesn't cover — omega-3s, magnesium,
+                  zinc, caffeine, water. Add one below.
+                </p>
+              )}
+              {Object.values(customNutrients).map(cn => (
+                <div key={cn.id}>
+                  <Gauge label={cn.name} value={totals[cn.id] || 0} target={cn.target} unit={cn.unit} dp={1} />
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0 4px" }}>
+                    <input className="na-input" type="number" min="0" step="any" defaultValue=""
+                      placeholder={`Amount (${cn.unit})`} style={{ width: 130, padding: "6px 10px", fontSize: 13 }}
+                      id={`cnq-${cn.id}`} aria-label={`Amount of ${cn.name} to log`} />
+                    <button className="na-btn" style={{ padding: "7px 14px", fontSize: 12.5 }}
+                      onClick={() => {
+                        const el = document.getElementById(`cnq-${cn.id}`);
+                        quickLogCustom(cn, el && el.value);
+                        if (el) el.value = "";
+                      }}>
+                      Log amount
+                    </button>
+                    <button className="na-btn na-btn-quiet" style={{ padding: "7px 14px", fontSize: 12.5, color: C.high }}
+                      onClick={() => deleteCustomNutrient(cn.id)}>
+                      Stop tracking
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", padding: "10px 0 14px" }}>
+                <div style={{ flex: "1 1 150px", maxWidth: 220 }}>
+                  <Field label="Nutrient to track">
+                    <input className="na-input" value={newNutrient.name}
+                      onChange={e => setNewNutrient(n => ({ ...n, name: e.target.value }))}
+                      placeholder="e.g. Omega-3 (EPA+DHA)" />
+                  </Field>
+                </div>
+                <div style={{ width: 84 }}>
+                  <Field label="Unit">
+                    <input className="na-input" value={newNutrient.unit}
+                      onChange={e => setNewNutrient(n => ({ ...n, unit: e.target.value }))} placeholder="g" />
+                  </Field>
+                </div>
+                <div style={{ width: 110 }}>
+                  <Field label="Daily target">
+                    <input className="na-input" type="number" min="0" step="any" value={newNutrient.target}
+                      onChange={e => setNewNutrient(n => ({ ...n, target: e.target.value }))} placeholder="1.5" />
+                  </Field>
+                </div>
+                <button className="na-btn" onClick={addCustomNutrient}
+                  disabled={!newNutrient.name.trim() || !(Number(newNutrient.target) > 0)}
+                  style={{ opacity: newNutrient.name.trim() && Number(newNutrient.target) > 0 ? 1 : 0.45 }}>
+                  Track it
+                </button>
+              </div>
+              <p style={{ fontSize: 11.5, color: C.faint, margin: "0 0 8px", lineHeight: 1.5 }}>
+                Searched and scanned foods don't carry custom nutrients automatically —
+                log amounts here (e.g. a fish-oil capsule) or include them in custom items below.
+                Set targets from your product label or your clinician's advice.
+              </p>
             </section>
 
             {/* ---------- 04 Recommendations ---------- */}
             <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
               <SectionHead num="04" title="Meal recommendations"
-                sub={recipeResults
-                  ? "Searching all recommended recipes by name, ingredient, meal, or nutrient."
-                  : recommendations.mode === "plan"
-                    ? "Nothing logged yet — here is a sample day designed to meet the full nutrient panel."
-                    : recommendations.mode === "met"
-                      ? "All tracked nutrients are at or near target."
-                      : "Meals selected to close today's remaining gaps."} />
-
-              <div style={{ marginBottom: 16, maxWidth: 380 }}>
-                <Field label="Search recipes">
-                  <input className="na-input" type="search" value={recSearch}
-                    onChange={e => setRecSearch(e.target.value)}
-                    placeholder="e.g. salmon, breakfast, iron, calcium…" />
-                </Field>
-              </div>
-
-              {recipeResults ? (
-                recipeResults.length === 0 ? (
-                  <p style={{ margin: 0, fontSize: 13.5, color: C.faint }}>
-                    No recipes match "{recSearch}". Try a nutrient like "iron" or a meal like "breakfast".
-                  </p>
-                ) : (
-                  <div style={{ display: "grid", gap: 12 }}>
-                    {recipeResults.map(r => <RecipeCard key={r.name} recipe={r} deficits={null} />)}
-                  </div>
-                )
-              ) : (
-                <>
+                sub={recommendations.mode === "plan"
+                  ? "Nothing logged yet — here is a sample day designed to meet the full nutrient panel. Tap a title to find full recipes on Google."
+                  : recommendations.mode === "met"
+                    ? "All tracked nutrients are at or near target."
+                    : "Meals selected to close today's remaining gaps. Tap a title to find full recipes on Google."} />
 
               {recommendations.mode === "catchup" && (
                 <p style={{ marginTop: 0, fontSize: 13.5 }}>
@@ -1892,8 +1967,6 @@ export default function NutritionAssessment() {
                     <RecipeCard key={r.name} recipe={r} deficits={recommendations.mode === "catchup" ? deficits : null} />
                   ))}
                 </div>
-              )}
-                </>
               )}
             </section>
           </>
