@@ -42,40 +42,140 @@ function computeTargets(p) {
 /* ------------------------------------------------------------------ */
 
 const FOODS = [
-  ["Oatmeal, cooked", "1 cup", 166, 6, 28, 3.6, 4, 21, 2.1, 164, 9, 0, 0],
-  ["Egg, large", "1 egg", 72, 6.3, 0.4, 4.8, 0, 28, 0.9, 69, 71, 0, 1.1],
-  ["Whole-wheat bread", "1 slice", 81, 4, 14, 1.1, 1.9, 52, 0.9, 81, 146, 0, 0],
-  ["White bread", "1 slice", 75, 2.6, 14, 1, 0.8, 73, 1, 33, 147, 0, 0],
-  ["Banana", "1 medium", 105, 1.3, 27, 0.4, 3.1, 6, 0.3, 422, 1, 10, 0],
-  ["Apple", "1 medium", 95, 0.5, 25, 0.3, 4.4, 11, 0.2, 195, 2, 8, 0],
-  ["Orange", "1 medium", 62, 1.2, 15, 0.2, 3.1, 52, 0.1, 237, 0, 70, 0],
-  ["Milk, 2%", "1 cup", 122, 8, 12, 4.8, 0, 293, 0.1, 342, 95, 0, 2.9],
-  ["Greek yogurt, plain", "1 cup", 146, 20, 8, 3.8, 0, 230, 0.1, 282, 68, 0, 0],
-  ["Cheddar cheese", "1 oz", 114, 6.4, 0.9, 9.4, 0, 201, 0.1, 21, 180, 0, 0.2],
-  ["Chicken breast, cooked", "3 oz", 140, 26, 0, 3, 0, 13, 0.9, 220, 63, 0, 0.1],
-  ["Salmon, cooked", "3 oz", 175, 19, 0, 10.5, 0, 13, 0.3, 326, 52, 0, 11.1],
-  ["Ground beef 90%, cooked", "3 oz", 184, 22, 0, 10, 0, 15, 2.4, 305, 66, 0, 0.1],
-  ["Tofu, firm", "1/2 cup", 98, 11, 2.4, 5.3, 1.5, 253, 2, 150, 9, 0, 0],
-  ["Black beans, cooked", "1/2 cup", 114, 7.6, 20, 0.5, 7.5, 23, 1.8, 305, 1, 0, 0],
-  ["Lentils, cooked", "1/2 cup", 115, 9, 20, 0.4, 7.8, 19, 3.3, 365, 2, 1.5, 0],
-  ["Brown rice, cooked", "1 cup", 218, 4.5, 46, 1.6, 3.5, 20, 0.8, 154, 2, 0, 0],
-  ["White rice, cooked", "1 cup", 205, 4.3, 45, 0.4, 0.6, 16, 1.9, 55, 2, 0, 0],
-  ["Pasta, cooked", "1 cup", 221, 8, 43, 1.3, 2.5, 10, 1.8, 63, 1, 0, 0],
-  ["Broccoli, cooked", "1 cup", 55, 3.7, 11, 0.6, 5.1, 62, 1, 457, 64, 101, 0],
-  ["Spinach, raw", "2 cups", 14, 1.7, 2.2, 0.2, 1.3, 60, 1.6, 334, 47, 17, 0],
-  ["Carrot", "1 medium", 25, 0.6, 6, 0.1, 1.7, 20, 0.2, 195, 42, 4, 0],
-  ["Sweet potato, baked", "1 medium", 103, 2.3, 24, 0.2, 3.8, 43, 0.8, 542, 41, 22, 0],
-  ["Potato, baked w/ skin", "1 medium", 161, 4.3, 37, 0.2, 3.8, 26, 1.9, 926, 17, 17, 0],
-  ["Avocado", "1/2 fruit", 161, 2, 8.5, 14.7, 6.7, 12, 0.6, 487, 7, 10, 0],
-  ["Almonds", "1 oz (23 nuts)", 164, 6, 6.1, 14.2, 3.5, 76, 1.1, 208, 0, 0, 0],
-  ["Peanut butter", "2 tbsp", 188, 8, 6.3, 16.1, 1.9, 17, 0.6, 208, 152, 0, 0],
-  ["Olive oil", "1 tbsp", 119, 0, 0, 13.5, 0, 0, 0.1, 0, 0, 0, 0],
-  ["Orange juice", "1 cup", 112, 1.7, 26, 0.5, 0.5, 27, 0.5, 496, 2, 124, 0],
-  ["Tomato", "1 medium", 22, 1.1, 4.8, 0.2, 1.5, 12, 0.3, 292, 6, 17, 0],
-  ["Tuna, canned in water", "3 oz", 99, 22, 0, 0.7, 0, 9, 1.3, 201, 287, 0, 1.7],
-  ["Mixed green salad", "2 cups", 18, 1.4, 3.4, 0.2, 1.8, 52, 1, 280, 20, 12, 0],
-].map(([name, serving, ...n]) => ({
-  name, serving,
+  // [name, serving, grams, kcal, protein, carb, fat, fiber, Ca, Fe, K, Na, vitC, vitD]
+  // --- Breakfast & grains ---
+  ["Oatmeal, cooked", "1 cup", 234, 166, 6, 28, 3.6, 4, 21, 2.1, 164, 9, 0, 0],
+  ["Breakfast cereal, fortified", "1 cup", 28, 110, 2, 23, 1.5, 2, 130, 8, 95, 160, 6, 1],
+  ["Granola", "1/2 cup", 61, 240, 6, 40, 7, 4, 40, 2, 210, 15, 0, 0],
+  ["Whole-wheat bread", "1 slice", 32, 81, 4, 14, 1.1, 1.9, 52, 0.9, 81, 146, 0, 0],
+  ["White bread", "1 slice", 29, 75, 2.6, 14, 1, 0.8, 73, 1, 33, 147, 0, 0],
+  ["Bagel", "1 medium", 105, 289, 11, 56, 1.7, 2.4, 19, 3.8, 107, 561, 0, 0],
+  ["English muffin", "1 whole", 57, 134, 4.4, 26, 1, 2, 93, 1.4, 75, 264, 0, 0],
+  ["Croissant", "1 medium", 57, 231, 4.7, 26, 12, 1.5, 21, 1.2, 67, 266, 0, 0],
+  ["Pancakes", "2 (4-inch)", 76, 175, 4.7, 22, 7.4, 0.9, 96, 1.3, 100, 440, 0, 0.2],
+  ["Waffle, frozen", "1 waffle", 35, 95, 2.2, 15, 2.9, 0.8, 100, 1.8, 42, 212, 0, 0.9],
+  ["Flour tortilla", "1 (8-inch)", 49, 146, 3.9, 24, 3.8, 1.4, 97, 1.6, 62, 364, 0, 0],
+  ["Corn tortilla", "1 (6-inch)", 26, 52, 1.4, 10.7, 0.7, 1.5, 20, 0.3, 42, 11, 0, 0],
+  ["Brown rice, cooked", "1 cup", 195, 218, 4.5, 46, 1.6, 3.5, 20, 0.8, 154, 2, 0, 0],
+  ["White rice, cooked", "1 cup", 186, 205, 4.3, 45, 0.4, 0.6, 16, 1.9, 55, 2, 0, 0],
+  ["Quinoa, cooked", "1 cup", 185, 222, 8.1, 39, 3.6, 5.2, 31, 2.8, 318, 13, 0, 0],
+  ["Couscous, cooked", "1 cup", 157, 176, 6, 36, 0.3, 2.2, 13, 0.6, 91, 8, 0, 0],
+  ["Pasta, cooked", "1 cup", 140, 221, 8, 43, 1.3, 2.5, 10, 1.8, 63, 1, 0, 0],
+  // --- Fruits ---
+  ["Banana", "1 medium", 118, 105, 1.3, 27, 0.4, 3.1, 6, 0.3, 422, 1, 10, 0],
+  ["Apple", "1 medium", 182, 95, 0.5, 25, 0.3, 4.4, 11, 0.2, 195, 2, 8, 0],
+  ["Orange", "1 medium", 131, 62, 1.2, 15, 0.2, 3.1, 52, 0.1, 237, 0, 70, 0],
+  ["Strawberries", "1 cup", 152, 49, 1, 11.7, 0.5, 3, 24, 0.6, 233, 2, 89, 0],
+  ["Blueberries", "1 cup", 148, 84, 1.1, 21, 0.5, 3.6, 9, 0.4, 114, 1, 14, 0],
+  ["Grapes", "1 cup", 151, 104, 1.1, 27, 0.2, 1.4, 15, 0.5, 288, 3, 5, 0],
+  ["Watermelon", "1 cup", 152, 46, 0.9, 11.5, 0.2, 0.6, 11, 0.4, 170, 2, 12, 0],
+  ["Pineapple", "1 cup", 165, 82, 0.9, 22, 0.2, 2.3, 21, 0.5, 180, 2, 79, 0],
+  ["Mango", "1 cup", 165, 99, 1.4, 25, 0.6, 2.6, 18, 0.3, 277, 2, 60, 0],
+  ["Peach", "1 medium", 150, 59, 1.4, 14, 0.4, 2.3, 9, 0.4, 285, 0, 10, 0],
+  ["Pear", "1 medium", 178, 101, 0.6, 27, 0.2, 5.5, 16, 0.3, 206, 2, 8, 0],
+  ["Cherries", "1 cup", 154, 97, 1.6, 25, 0.3, 3.2, 20, 0.6, 342, 0, 11, 0],
+  ["Grapefruit", "1/2 fruit", 123, 52, 0.9, 13, 0.2, 2, 27, 0.1, 166, 0, 38, 0],
+  ["Kiwi", "1 fruit", 69, 42, 0.8, 10, 0.4, 2.1, 23, 0.2, 215, 2, 64, 0],
+  ["Raisins", "small box", 43, 129, 1.3, 34, 0.2, 1.6, 27, 0.8, 322, 5, 1, 0],
+  ["Avocado", "1/2 fruit", 100, 161, 2, 8.5, 14.7, 6.7, 12, 0.6, 487, 7, 10, 0],
+  // --- Vegetables ---
+  ["Broccoli, cooked", "1 cup", 156, 55, 3.7, 11, 0.6, 5.1, 62, 1, 457, 64, 101, 0],
+  ["Spinach, raw", "2 cups", 60, 14, 1.7, 2.2, 0.2, 1.3, 60, 1.6, 334, 47, 17, 0],
+  ["Kale, raw", "2 cups", 42, 15, 1.4, 3, 0.3, 1.7, 63, 0.6, 143, 15, 25, 0],
+  ["Carrot", "1 medium", 61, 25, 0.6, 6, 0.1, 1.7, 20, 0.2, 195, 42, 4, 0],
+  ["Bell pepper", "1 medium", 119, 31, 1.2, 7.2, 0.4, 2.5, 8, 0.5, 251, 5, 152, 0],
+  ["Cucumber", "1/2 cup", 52, 8, 0.3, 1.9, 0.1, 0.3, 8, 0.1, 76, 1, 1.5, 0],
+  ["Zucchini, cooked", "1 cup", 180, 27, 2.1, 5, 0.6, 1.8, 32, 0.7, 475, 5, 15, 0],
+  ["Cauliflower, cooked", "1 cup", 124, 29, 2.3, 5.1, 0.6, 2.9, 20, 0.4, 176, 19, 55, 0],
+  ["Green beans, cooked", "1 cup", 125, 44, 2.4, 9.9, 0.4, 4, 55, 0.8, 182, 1, 12, 0],
+  ["Peas, cooked", "1 cup", 160, 134, 8.6, 25, 0.4, 8.8, 43, 2.5, 434, 5, 23, 0],
+  ["Corn on the cob", "1 ear", 90, 88, 3.3, 19, 1.4, 2, 2, 0.5, 250, 15, 6.8, 0],
+  ["Mushrooms, cooked", "1 cup", 156, 44, 3.4, 8.3, 0.7, 3.4, 9, 2.7, 555, 3, 6, 0.4],
+  ["Onion", "1/2 cup", 80, 32, 0.9, 7.5, 0.1, 1.4, 18, 0.2, 117, 3, 5.9, 0],
+  ["Celery", "2 stalks", 80, 11, 0.6, 2.4, 0.1, 1.3, 32, 0.2, 208, 64, 2.5, 0],
+  ["Asparagus, cooked", "1 cup", 180, 40, 4.3, 7.4, 0.4, 3.6, 41, 1.6, 403, 25, 14, 0],
+  ["Cabbage, cooked", "1 cup", 150, 34, 1.9, 8.3, 0.1, 2.9, 72, 0.3, 294, 12, 56, 0],
+  ["Kimchi", "1/2 cup", 75, 11, 0.8, 1.6, 0.4, 1.2, 24, 0.9, 130, 373, 2, 0],
+  ["Beets, cooked", "1 cup", 170, 74, 2.9, 17, 0.3, 3.4, 27, 1.3, 518, 131, 6, 0],
+  ["Tomato", "1 medium", 123, 22, 1.1, 4.8, 0.2, 1.5, 12, 0.3, 292, 6, 17, 0],
+  ["Sweet potato, baked", "1 medium", 114, 103, 2.3, 24, 0.2, 3.8, 43, 0.8, 542, 41, 22, 0],
+  ["Potato, baked w/ skin", "1 medium", 173, 161, 4.3, 37, 0.2, 3.8, 26, 1.9, 926, 17, 17, 0],
+  ["Mixed green salad", "2 cups", 72, 18, 1.4, 3.4, 0.2, 1.8, 52, 1, 280, 20, 12, 0],
+  // --- Proteins ---
+  ["Egg, large", "1 egg", 50, 72, 6.3, 0.4, 4.8, 0, 28, 0.9, 69, 71, 0, 1.1],
+  ["Chicken breast, cooked", "3 oz", 85, 140, 26, 0, 3, 0, 13, 0.9, 220, 63, 0, 0.1],
+  ["Rotisserie chicken", "3 oz", 85, 152, 21, 0, 7.6, 0, 12, 0.8, 197, 320, 0, 0.1],
+  ["Ground turkey, cooked", "3 oz", 85, 173, 23, 0, 8.5, 0, 21, 1.2, 221, 66, 0, 0.3],
+  ["Turkey breast, roasted", "3 oz", 85, 125, 26, 0, 1.8, 0, 8, 0.7, 249, 49, 0, 0.1],
+  ["Ground beef 90%, cooked", "3 oz", 85, 184, 22, 0, 10, 0, 15, 2.4, 305, 66, 0, 0.1],
+  ["Sirloin steak, cooked", "3 oz", 85, 180, 25, 0, 8.2, 0, 15, 1.5, 285, 52, 0, 0.1],
+  ["Pork chop, cooked", "3 oz", 85, 197, 26, 0, 9.7, 0, 24, 0.8, 318, 51, 0, 0.7],
+  ["Bacon", "2 slices", 16, 87, 6, 0.2, 6.8, 0, 2, 0.2, 92, 370, 0, 0.1],
+  ["Deli ham", "2 slices", 56, 61, 9.4, 1.5, 1.7, 0, 4, 0.5, 176, 590, 0, 0.4],
+  ["Hot dog, beef", "1 frank", 57, 186, 7, 2, 17, 0, 9, 0.8, 90, 572, 0, 0.3],
+  ["Pork sausage", "2 links", 54, 165, 9, 0.7, 14, 0, 9, 0.6, 152, 380, 0, 0.7],
+  ["Salmon, cooked", "3 oz", 85, 175, 19, 0, 10.5, 0, 13, 0.3, 326, 52, 0, 11.1],
+  ["Canned salmon", "3 oz", 85, 118, 17, 0, 5.1, 0, 181, 0.7, 277, 64, 0, 13.7],
+  ["Tuna, canned in water", "3 oz", 85, 99, 22, 0, 0.7, 0, 9, 1.3, 201, 287, 0, 1.7],
+  ["Sardines, canned", "1 can", 92, 191, 22.6, 0, 10.5, 0, 351, 2.7, 365, 465, 0, 4.4],
+  ["Tilapia, cooked", "3 oz", 85, 109, 22, 0, 2.3, 0, 12, 0.6, 323, 48, 0, 3.7],
+  ["Cod, cooked", "3 oz", 85, 89, 19, 0, 0.7, 0, 12, 0.4, 207, 66, 0, 1],
+  ["Shrimp, cooked", "3 oz", 85, 84, 20, 0.2, 0.2, 0, 77, 0.3, 145, 94, 0, 0.1],
+  ["Tofu, firm", "1/2 cup", 126, 98, 11, 2.4, 5.3, 1.5, 253, 2, 150, 9, 0, 0],
+  ["Tempeh", "1/2 cup", 83, 160, 17, 6.4, 9, 3.5, 92, 2.2, 342, 7, 0, 0],
+  ["Edamame, cooked", "1 cup", 155, 188, 18.5, 13.8, 8.1, 8.1, 98, 3.5, 676, 9, 9.5, 0],
+  ["Black beans, cooked", "1/2 cup", 86, 114, 7.6, 20, 0.5, 7.5, 23, 1.8, 305, 1, 0, 0],
+  ["Kidney beans, cooked", "1/2 cup", 89, 112, 7.7, 20, 0.4, 5.7, 31, 2, 358, 1, 1, 0],
+  ["Chickpeas, cooked", "1/2 cup", 82, 134, 7.3, 22, 2.1, 6.2, 40, 2.4, 239, 6, 1, 0],
+  ["Lentils, cooked", "1/2 cup", 99, 115, 9, 20, 0.4, 7.8, 19, 3.3, 365, 2, 1.5, 0],
+  ["Hummus", "2 tbsp", 30, 78, 2.2, 4, 5.5, 1.5, 11, 0.7, 64, 114, 0, 0],
+  ["Protein powder, whey", "1 scoop", 30, 120, 24, 3, 1, 1, 50, 0.5, 150, 60, 0, 0],
+  // --- Dairy & alternatives ---
+  ["Milk, 2%", "1 cup", 244, 122, 8, 12, 4.8, 0, 293, 0.1, 342, 95, 0, 2.9],
+  ["Whole milk", "1 cup", 244, 149, 7.7, 11.7, 7.9, 0, 276, 0, 322, 105, 0, 2.7],
+  ["Skim milk", "1 cup", 245, 83, 8.3, 12, 0.2, 0, 299, 0.1, 382, 103, 0, 2.9],
+  ["Almond milk, unsweetened", "1 cup", 240, 37, 1, 1.4, 2.7, 0.5, 449, 0.7, 160, 176, 0, 2.4],
+  ["Soy milk", "1 cup", 243, 105, 6.3, 12, 3.6, 0.5, 300, 1, 298, 115, 0, 2.9],
+  ["Oat milk", "1 cup", 240, 120, 3, 16, 5, 2, 350, 0.3, 390, 100, 0, 3.6],
+  ["Greek yogurt, plain", "1 cup", 245, 146, 20, 8, 3.8, 0, 230, 0.1, 282, 68, 0, 0],
+  ["Cottage cheese", "1/2 cup", 113, 92, 12, 4.9, 2.6, 0, 94, 0.2, 118, 348, 0, 0],
+  ["Cheddar cheese", "1 oz", 28, 114, 6.4, 0.9, 9.4, 0, 201, 0.1, 21, 180, 0, 0.2],
+  ["Mozzarella", "1 oz", 28, 85, 6.3, 0.6, 6.3, 0, 143, 0.1, 21, 138, 0, 0.1],
+  ["String cheese", "1 stick", 28, 80, 6, 1, 6, 0, 200, 0, 20, 200, 0, 0],
+  ["Butter", "1 tbsp", 14, 102, 0.1, 0, 11.5, 0, 3, 0, 3, 91, 0, 0],
+  ["Ice cream, vanilla", "1/2 cup", 66, 137, 2.3, 16, 7.3, 0.5, 84, 0.1, 131, 53, 0.4, 0.1],
+  // --- Nuts, snacks & prepared ---
+  ["Almonds", "1 oz (23 nuts)", 28, 164, 6, 6.1, 14.2, 3.5, 76, 1.1, 208, 0, 0, 0],
+  ["Walnuts", "1 oz", 28, 185, 4.3, 3.9, 18.5, 1.9, 28, 0.8, 125, 1, 0, 0],
+  ["Cashews", "1 oz", 28, 157, 5.2, 8.6, 12.4, 0.9, 10, 1.9, 187, 3, 0, 0],
+  ["Peanut butter", "2 tbsp", 32, 188, 8, 6.3, 16.1, 1.9, 17, 0.6, 208, 152, 0, 0],
+  ["Popcorn, air-popped", "3 cups", 24, 93, 3, 19, 1.1, 3.5, 2, 0.8, 79, 2, 0, 0],
+  ["Potato chips", "1 oz", 28, 152, 1.8, 15, 9.8, 1.2, 7, 0.4, 361, 148, 5, 0],
+  ["Pretzels", "1 oz", 28, 108, 2.9, 22, 0.8, 0.9, 10, 1.2, 41, 352, 0, 0],
+  ["Saltine crackers", "5 crackers", 15, 62, 1.3, 11, 1.3, 0.4, 18, 0.8, 19, 140, 0, 0],
+  ["Granola bar", "1 bar", 40, 190, 3, 28, 7, 2, 40, 1, 105, 105, 0, 0],
+  ["Dark chocolate 70%", "1 oz", 28, 170, 2.2, 13, 12, 3.1, 20, 3.4, 200, 6, 0, 0],
+  ["Instant ramen", "1 package", 85, 380, 8, 54, 14, 2, 20, 3.4, 180, 1560, 0, 0],
+  ["Mac and cheese, boxed", "1 cup prepared", 230, 350, 10, 48, 12, 1.5, 110, 2, 180, 720, 0, 0],
+  ["Cheese pizza", "1 slice", 107, 285, 12, 36, 10, 2.5, 220, 2.5, 184, 640, 2, 0],
+  // --- Drinks & condiments ---
+  ["Orange juice", "1 cup", 248, 112, 1.7, 26, 0.5, 0.5, 27, 0.5, 496, 2, 124, 0],
+  ["Cola", "12 oz can", 355, 140, 0, 39, 0, 0, 7, 0, 4, 45, 0, 0],
+  ["Coffee, black", "1 cup", 240, 2, 0.3, 0, 0, 0, 5, 0, 116, 5, 0, 0],
+  ["Green tea", "1 cup", 245, 2, 0.5, 0, 0, 0, 0, 0, 20, 2, 0, 0],
+  ["Beer", "12 oz", 356, 153, 1.6, 12.6, 0, 0, 14, 0, 96, 14, 0, 0],
+  ["Red wine", "5 oz", 148, 125, 0.1, 3.8, 0, 0, 12, 0.7, 187, 6, 0, 0],
+  ["Olive oil", "1 tbsp", 13.5, 119, 0, 0, 13.5, 0, 0, 0.1, 0, 0, 0, 0],
+  ["Ketchup", "1 tbsp", 17, 17, 0.2, 4.5, 0, 0, 3, 0.1, 48, 154, 0.7, 0],
+  ["Mayonnaise", "1 tbsp", 13, 94, 0.1, 0, 10, 0, 1, 0, 3, 88, 0, 0],
+  ["Soy sauce", "1 tbsp", 16, 8, 1.3, 0.8, 0, 0.1, 3, 0.4, 38, 879, 0, 0],
+  ["Salsa", "2 tbsp", 32, 9, 0.5, 2, 0, 0.5, 9, 0.2, 95, 192, 1, 0],
+  ["Ranch dressing", "2 tbsp", 30, 129, 0.4, 1.8, 13.4, 0, 8, 0, 21, 270, 0, 0],
+  ["Honey", "1 tbsp", 21, 64, 0, 17, 0, 0, 1, 0.1, 11, 1, 0, 0],
+  ["Jam / jelly", "1 tbsp", 20, 56, 0, 14, 0, 0.2, 4, 0.1, 15, 6, 2, 0],
+  ["Maple syrup", "1 tbsp", 20, 52, 0, 13, 0, 0, 20, 0, 42, 2, 0, 0],
+].map(([name, serving, grams, ...n]) => ({
+  name, serving, grams,
   kcal: n[0], protein: n[1], carb: n[2], fat: n[3], fiber: n[4],
   calcium: n[5], iron: n[6], potassium: n[7], sodium: n[8], vitC: n[9], vitD: n[10],
 }));
@@ -282,19 +382,9 @@ const NUTRIENT_LIBRARY = {
   caffeine: [["espresso", 212], ["coffee", 40], ["energy drink", 32], ["black tea", 20], ["green tea", 12], ["dark chocolate", 80], ["cola", 8]],
 };
 
-// Approximate gram weights of the built-in quick list's servings, so
-// per-100 g library values can be scaled for those items too.
-const SERVING_GRAMS = {
-  "Oatmeal, cooked": 234, "Egg, large": 50, "Whole-wheat bread": 32, "White bread": 29,
-  "Banana": 118, "Apple": 182, "Orange": 131, "Milk, 2%": 244, "Greek yogurt, plain": 245,
-  "Cheddar cheese": 28, "Chicken breast, cooked": 85, "Salmon, cooked": 85,
-  "Ground beef 90%, cooked": 85, "Tofu, firm": 126, "Black beans, cooked": 86,
-  "Lentils, cooked": 99, "Brown rice, cooked": 195, "White rice, cooked": 186,
-  "Pasta, cooked": 140, "Broccoli, cooked": 156, "Spinach, raw": 60, "Carrot": 61,
-  "Sweet potato, baked": 114, "Potato, baked w/ skin": 173, "Avocado": 100,
-  "Almonds": 28, "Peanut butter": 32, "Olive oil": 13.5, "Orange juice": 248,
-  "Tomato": 123, "Tuna, canned in water": 85, "Mixed green salad": 72,
-};
+// Gram weights of each quick-list serving, derived from the food data,
+// so per-100 g research-library values scale correctly.
+const SERVING_GRAMS = Object.fromEntries(FOODS.map(f => [f.name, f.grams]));
 
 function libraryLookup(presetKey, foodName) {
   const list = NUTRIENT_LIBRARY[presetKey];
@@ -674,9 +764,80 @@ function MealPatternTips({ food }) {
       )}
       {salty && (
         <p style={{ margin: mp ? "8px 0 0" : 0, fontSize: 12, color: "#7a5210" }}>
-          Salty pick: {Math.round(food.sodium)} mg sodium per 100 g — the gauge below tracks it against the 2,300 mg daily limit.
+          High in sodium: {Math.round(food.sodium)} mg per 100 g — the gauge below tracks it against the 2,300 mg daily limit.
         </p>
       )}
+    </div>
+  );
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Macro-distribution styles. "standard" is the official USDA/DRI    */
+/*  AMDR; the rest are popular dietary patterns without an official   */
+/*  government recommendation behind them.                            */
+/* ------------------------------------------------------------------ */
+
+const MACRO_STYLES = {
+  standard: { name: "Standard (USDA/DRI AMDR)", carb: [45, 65], protein: [10, 35], fat: [20, 35] },
+  med: { name: "Mediterranean-style", carb: [40, 55], protein: [15, 20], fat: [30, 40] },
+  highprotein: { name: "High-protein", carb: [30, 45], protein: [25, 35], fat: [25, 35] },
+  lowcarb: { name: "Low-carb", carb: [10, 25], protein: [25, 35], fat: [40, 60] },
+  keto: { name: "Ketogenic", carb: [5, 10], protein: [15, 30], fat: [60, 80] },
+  zone: { name: "Zone (40/30/30)", carb: [37, 43], protein: [27, 33], fat: [27, 33] },
+  endurance: { name: "Carb-loading / endurance", carb: [60, 70], protein: [10, 20], fat: [15, 25] },
+  custom: { name: "Custom…", carb: [45, 65], protein: [10, 35], fat: [20, 35] },
+};
+
+/* ------------------------------------------------------------------ */
+/*  Allergy & restriction library — keyword matching over product     */
+/*  names and ingredient labels. A helper, NOT a medical safeguard:   */
+/*  labels in the databases can be incomplete and trace/"may contain" */
+/*  warnings are usually absent.                                      */
+/* ------------------------------------------------------------------ */
+
+const RESTRICTIONS = {
+  gluten: { name: "Gluten / wheat", kw: ["wheat", "barley", "rye", "malt", "semolina", "spelt", "farro", "seitan", "couscous", "flour", "bread", "pasta", "cracker"] },
+  milk: { name: "Milk / dairy", kw: ["milk", "butter", "cream", "cheese", "whey", "casein", "yogurt", "lactose", "ghee"] },
+  egg: { name: "Egg", kw: ["egg", "albumin", "mayonnaise", "meringue"] },
+  peanut: { name: "Peanut", kw: ["peanut"] },
+  treenut: { name: "Tree nuts", kw: ["almond", "walnut", "cashew", "pecan", "pistachio", "hazelnut", "macadamia", "brazil nut"] },
+  soy: { name: "Soy", kw: ["soy", "soya", "edamame", "tofu", "tempeh", "miso"] },
+  fish: { name: "Fish", kw: ["fish", "salmon", "tuna", "cod", "anchov", "sardine", "trout", "tilapia", "mackerel"] },
+  shellfish: { name: "Shellfish", kw: ["shrimp", "crab", "lobster", "prawn", "oyster", "clam", "mussel", "scallop", "crawfish"] },
+  sesame: { name: "Sesame", kw: ["sesame", "tahini"] },
+  sugar: { name: "Refined / added sugar", kw: ["sugar", "corn syrup", "dextrose", "maltose", "fructose", "cane juice"] },
+  pork: { name: "Pork", kw: ["pork", "bacon", "ham", "lard", "prosciutto", "gelatin"] },
+};
+
+function checkRestrictions(food, activeKeys) {
+  const hay = ((food.name || "") + " " + (food.ingredients || "")).toLowerCase();
+  const hits = [];
+  for (const key of activeKeys || []) {
+    const r = RESTRICTIONS[key];
+    if (!r) continue;
+    const hit = r.kw.find(k => hay.includes(k));
+    if (hit) hits.push({ name: r.name, matched: hit });
+  }
+  return hits;
+}
+
+function RestrictionCheck({ food, active }) {
+  const hits = checkRestrictions(food, active);
+  if (hits.length === 0) return null;
+  return (
+    <div role="alert" style={{ marginTop: 12, padding: "12px 14px", background: "#f7e3dc", border: `1px solid ${C.accent}`, borderRadius: 10 }}>
+      <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: C.high }}>
+        ⚠ May conflict with your listed restrictions
+      </p>
+      <ul style={{ margin: "0 0 6px", padding: 0, listStyle: "none", fontSize: 12.5, lineHeight: 1.55 }}>
+        {hits.map(h => <li key={h.name}><strong>{h.name}</strong> — matched “{h.matched}”</li>)}
+      </ul>
+      <p style={{ margin: 0, fontSize: 10.5, color: C.faint, lineHeight: 1.5 }}>
+        Keyword check against the product name and database ingredient label. Database
+        labels can be incomplete and rarely include “may contain” trace warnings —
+        for medical allergies, always verify the physical package.
+      </p>
     </div>
   );
 }
@@ -725,7 +886,7 @@ function IngredientCheck({ text }) {
         if (alts.length === 0) return null;
         return (
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.rule}` }}>
-            <div className="na-eyebrow" style={{ marginBottom: 6, color: C.ok }}>Gentler swaps — no guilt required</div>
+            <div className="na-eyebrow" style={{ marginBottom: 6, color: C.ok }}>Alternatives to consider</div>
             {alts.map(a => (
               <div key={a.id} style={{ marginBottom: 10 }}>
                 <p style={{ margin: "0 0 4px", fontSize: 12.5, lineHeight: 1.55 }}>
@@ -814,17 +975,16 @@ function Gauge({ label, value, target, unit, isLimit, dp = 0 }) {
 }
 
 
-function MacroSummary({ totals, targets }) {
+function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCustomBands }) {
   const kcal = totals.kcal;
   const remaining = Math.round(targets.kcal - kcal);
   const pctE = (g, kcalPerG) => kcal > 0 ? ((g * kcalPerG) / kcal) * 100 : 0;
+  const bands = styleKey === "custom" ? customBands : MACRO_STYLES[styleKey] || MACRO_STYLES.standard;
+  const gramRange = (band, perG) => `${Math.round(targets.kcal * band[0] / 100 / perG)}–${Math.round(targets.kcal * band[1] / 100 / perG)} g`;
   const tiles = [
-    { label: "Carbs", grams: totals.carb, p: pctE(totals.carb, 4), band: [45, 65],
-      targetText: `${Math.round(targets.kcal * 0.45 / 4)}–${Math.round(targets.kcal * 0.65 / 4)} g` },
-    { label: "Protein", grams: totals.protein, p: pctE(totals.protein, 4), band: [10, 35],
-      targetText: `RDA ≥ ${targets.protein} g` },
-    { label: "Fat", grams: totals.fat, p: pctE(totals.fat, 9), band: [20, 35],
-      targetText: `${Math.round(targets.kcal * 0.20 / 9)}–${Math.round(targets.kcal * 0.35 / 9)} g` },
+    { key: "carb", label: "Carbs", grams: totals.carb, p: pctE(totals.carb, 4), band: bands.carb, targetText: gramRange(bands.carb, 4) },
+    { key: "protein", label: "Protein", grams: totals.protein, p: pctE(totals.protein, 4), band: bands.protein, targetText: `${gramRange(bands.protein, 4)} · RDA ≥ ${targets.protein} g` },
+    { key: "fat", label: "Fat", grams: totals.fat, p: pctE(totals.fat, 9), band: bands.fat, targetText: gramRange(bands.fat, 9) },
   ];
   return (
     <div style={{ background: C.paper, border: `1px solid ${C.rule}`, borderRadius: 12, padding: "16px 18px", margin: "10px 0 8px" }}>
@@ -839,6 +999,32 @@ function MacroSummary({ totals, targets }) {
         <div className="na-mono" style={{ fontSize: 13, color: remaining >= 0 ? C.faint : C.high }}>
           {remaining >= 0 ? `${remaining.toLocaleString()} kcal remaining` : `${Math.abs(remaining).toLocaleString()} kcal over target`}
         </div>
+      </div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12 }}>
+        <div style={{ width: 240 }}>
+          <Field label="Dietary style (sets the macro bands)">
+            <select className="na-select" value={styleKey} onChange={e => onStyle(e.target.value)}>
+              {Object.entries(MACRO_STYLES).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
+            </select>
+          </Field>
+        </div>
+        {styleKey === "custom" && ["carb", "protein", "fat"].map(m => (
+          <div key={m} style={{ width: 118 }}>
+            <Field label={`${m} % min–max`}>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[0, 1].map(i => (
+                  <input key={i} className="na-input" type="number" min="0" max="100" style={{ padding: "6px 8px", fontSize: 13 }}
+                    value={customBands[m][i]}
+                    onChange={e => {
+                      const nb = { ...customBands, [m]: [...customBands[m]] };
+                      nb[m][i] = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                      onCustomBands(nb);
+                    }} />
+                ))}
+              </div>
+            </Field>
+          </div>
+        ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16, marginTop: 16 }}>
         {tiles.map(t => {
@@ -860,9 +1046,10 @@ function MacroSummary({ totals, targets }) {
         })}
       </div>
       <p style={{ margin: "14px 0 0", fontSize: 11, color: C.faint, lineHeight: 1.5 }}>
-        Shaded bands are the Acceptable Macronutrient Distribution Ranges (AMDR) from the
-        Dietary Reference Intakes — the framework dietitians use to assess macro balance.
-        The marker shows where today's intake falls.
+        {styleKey === "standard"
+          ? "Shaded bands are the Acceptable Macronutrient Distribution Ranges (AMDR) from the Dietary Reference Intakes — the framework dietitians use to assess macro balance."
+          : `Shaded bands reflect the ${(MACRO_STYLES[styleKey] || MACRO_STYLES.custom).name.replace("…", "")} pattern — a popular dietary style, not an official recommendation (the USDA/DRI standard is 45–65% carbs, 10–35% protein, 20–35% fat). For therapeutic diets like keto, work with a clinician.`}
+        {" "}The marker shows where today's intake falls.
       </p>
     </div>
   );
@@ -1492,6 +1679,8 @@ export default function NutritionAssessment() {
   const [showScanner, setShowScanner] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
   const [bonusMsg, setBonusMsg] = useState("");
+  const [macroStyle, setMacroStyle] = useState("standard");
+  const [customBands, setCustomBands] = useState({ carb: [45, 65], protein: [10, 35], fat: [20, 35] });
   const [custom, setCustom] = useState({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
   const [history, setHistory] = useState({});
   const [recipes, setRecipes] = useState({});
@@ -1531,6 +1720,8 @@ export default function NutritionAssessment() {
         loadStore(userKey(VKEY, currentUser)),
       ]);
       setProfileOpen(!(v && v.profileOpen === false));
+      setMacroStyle((v && v.macroStyle) || "standard");
+      setCustomBands((v && v.customBands) || { carb: [45, 65], protein: [10, 35], fat: [20, 35] });
       setHistory(h || {});
       setRecipes(r || {});
       setBarcodes(b || {});
@@ -1550,6 +1741,10 @@ export default function NutritionAssessment() {
     const t = setTimeout(() => saveStore(userKey(PKEY, currentUser), profile), 600);
     return () => clearTimeout(t);
   }, [profile, currentUser]);
+
+  const persistUi = (patch) => {
+    saveStore(userKey(VKEY, currentUser), { profileOpen, macroStyle, customBands, ...patch });
+  };
 
   const addUser = async () => {
     const name = newUser.trim();
@@ -1655,7 +1850,7 @@ export default function NutritionAssessment() {
   }, [log.length, deficits]);
 
   const matches = query.length > 0
-    ? FOODS.filter(f => f.name.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
+    ? FOODS.filter(f => f.name.toLowerCase().includes(query.toLowerCase())).slice(0, 7)
     : [];
 
   const set = (k) => (e) => setProfile(p => ({ ...p, [k]: e.target.value }));
@@ -1689,7 +1884,7 @@ export default function NutritionAssessment() {
     const bonuses = detectBonuses(selected.name);
     if (bonuses.length > 0) {
       const b = bonuses[0];
-      setBonusMsg(`✦ Nice pick! Beyond the standard panel, this also brings ${b.extra.toLowerCase()} — ${b.blurb}.`);
+      setBonusMsg(`✦ Good choice — beyond the standard panel, this food also provides ${b.extra.toLowerCase()} (${b.blurb}).`);
       setTimeout(() => setBonusMsg(""), 8000);
     }
     setSelected(null); setQuery(""); setQty(1); setAmount(100); setAmountUnit("g"); setUsdaResults([]);
@@ -1853,6 +2048,14 @@ export default function NutritionAssessment() {
         </div>
       </header>
 
+      <div style={{ background: "#ece4d4", borderBottom: `1px solid ${C.rule}` }}>
+        <p style={{ maxWidth: 860, margin: "0 auto", padding: "8px 20px", fontSize: 11.5, lineHeight: 1.5, color: "#4a4137" }}>
+          This site is a quick reference for general information only and is not medical
+          advice. Always follow your healthcare provider's recommendations and verify
+          ingredient and allergen information on the product packaging.
+        </p>
+      </div>
+
       <main style={{ maxWidth: 860, margin: "0 auto", padding: "26px 20px 40px", display: "grid", gap: 26 }}>
 
         {tab === "reference" && <ReferenceTab targets={targets} />}
@@ -1902,7 +2105,7 @@ export default function NutritionAssessment() {
                 <button className="na-btn na-btn-quiet" aria-expanded={profileOpen}
                   onClick={() => setProfileOpen(o => {
                     const nv = !o;
-                    saveStore(userKey(VKEY, currentUser), { profileOpen: nv });
+                    persistUi({ profileOpen: nv });
                     return nv;
                   })} style={{ padding: "5px 12px", flexShrink: 0 }}>
                   {profileOpen ? "Hide" : "Show"}
@@ -1942,6 +2145,29 @@ export default function NutritionAssessment() {
                     {Object.entries(ACTIVITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
                 </Field>
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <span className="na-eyebrow" style={{ display: "block", marginBottom: 6 }}>Allergies & restrictions (optional)</span>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 6 }}>
+                  {Object.entries(RESTRICTIONS).map(([key, r]) => {
+                    const active = (profile.restrictions || []).includes(key);
+                    return (
+                      <label key={key} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, cursor: "pointer" }}>
+                        <input type="checkbox" checked={active}
+                          onChange={() => setProfile(pr => {
+                            const cur = pr.restrictions || [];
+                            return { ...pr, restrictions: active ? cur.filter(k => k !== key) : [...cur, key] };
+                          })} />
+                        {r.name}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p style={{ margin: "8px 0 0", fontSize: 11, color: C.faint, lineHeight: 1.5 }}>
+                  Foods you select are checked against these by name and ingredient label.
+                  Helpful for spotting conflicts — but database labels can be incomplete, so
+                  for medical allergies always verify the physical package.
+                </p>
               </div>
                   <p className="na-mono" style={{ fontSize: 12, color: C.faint, marginTop: 16, marginBottom: 0 }}>
                     Energy target basis: {targets.kcalBasis} → {targets.kcal.toLocaleString()} kcal/day
@@ -2055,14 +2281,16 @@ export default function NutritionAssessment() {
                       onKeyDown={(e) => { if (e.key === "Enter" && source === "usda") runUsdaSearch(); }}
                     />
                   </Field>
-                  {source === "local" && matches.length > 0 && !selected && (
+                  {(source === "local" || source === "usda") && matches.length > 0 && !selected && usdaResults.length === 0 && (
                     <ul style={{ position: "absolute", zIndex: 5, left: 0, right: 0, top: "100%", margin: 0, padding: 0, listStyle: "none", background: "#fff", border: `1px solid ${C.rule}`, borderTop: "none", boxShadow: "0 6px 16px rgba(24,36,48,0.12)" }}>
                       {matches.map(f => (
                         <li key={f.name}>
                           <button onClick={() => { setSelected(f); setQuery(""); }}
                             style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 10px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
                             <span>{f.name}</span>
-                            <span className="na-mono" style={{ color: C.faint, fontSize: 12 }}>{f.serving} · {f.kcal} kcal</span>
+                            <span className="na-mono" style={{ color: C.faint, fontSize: 12 }}>
+                              {f.serving} · {f.kcal} kcal{source === "usda" ? " · built-in" : ""}
+                            </span>
                           </button>
                         </li>
                       ))}
@@ -2107,6 +2335,7 @@ export default function NutritionAssessment() {
               {bonusMsg && <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: C.ok, fontWeight: 600 }}>{bonusMsg}</p>}
               {selected && selected.ingredients && <IngredientCheck text={selected.ingredients} />}
               {selected && <MealPatternTips food={selected} />}
+              {selected && <RestrictionCheck food={selected} active={profile.restrictions} />}
 
               {searchError && <p role="alert" style={{ marginTop: 12, marginBottom: 0, fontSize: 13, color: C.high }}>{searchError}</p>}
 
@@ -2199,7 +2428,9 @@ export default function NutritionAssessment() {
               ) : (
                 <>
                   <div className="na-eyebrow" style={{ margin: "4px 0 2px" }}>Energy & macronutrients</div>
-                  <MacroSummary totals={totals} targets={targets} />
+                  <MacroSummary totals={totals} targets={targets} styleKey={macroStyle} customBands={customBands}
+                    onStyle={(k) => { setMacroStyle(k); persistUi({ macroStyle: k }); }}
+                    onCustomBands={(b) => { setCustomBands(b); persistUi({ customBands: b }); }} />
                   <Gauge label="Protein (vs RDA)" value={totals.protein} target={targets.protein} unit="g" dp={1} />
                   <Gauge label="Dietary fiber" value={totals.fiber} target={targets.fiber} unit="g" dp={1} />
 
@@ -2228,7 +2459,7 @@ export default function NutritionAssessment() {
                         <div className="na-eyebrow" style={{ margin: "18px 0 2px" }}>Bonus nutrients today</div>
                         <div style={{ padding: "12px 14px", margin: "8px 0 4px", background: "#eef0e4", border: `1px solid ${C.rule}`, borderRadius: 10 }}>
                           <p style={{ margin: "0 0 8px", fontSize: 13.5, fontWeight: 600, color: C.ok }}>
-                            ✦ Great choices — today's foods also deliver {found.length} extra{found.length > 1 ? "s" : ""} beyond the standard panel:
+                            ✦ Well done — today's foods also provide {found.length} beneficial compound{found.length > 1 ? "s" : ""} beyond the standard panel:
                           </p>
                           <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 }}>
                             {found.map(b => (
@@ -2238,7 +2469,7 @@ export default function NutritionAssessment() {
                             ))}
                           </ul>
                           <p style={{ margin: "8px 0 0", fontSize: 11, color: C.faint }}>
-                            These plant compounds and extras have no official daily targets, so they aren't scored — just celebrated.
+                            These plant compounds and extras have no official daily targets, so they are shown for information rather than scored.
                           </p>
                         </div>
                       </>
@@ -2383,12 +2614,19 @@ export default function NutritionAssessment() {
         )}
 
         <footer style={{ fontSize: 12, color: C.faint, lineHeight: 1.6, borderTop: `1px solid ${C.rule}`, paddingTop: 14 }}>
-          Reference values are general guidance adapted from the U.S. Dietary Reference
-          Intakes (National Academies) and Dietary Guidelines for Americans. Food
-          composition data provided by USDA FoodData Central (fdc.nal.usda.gov);
-          built-in quick-list figures are approximate. This tool is for informational purposes
-          only and is not medical or dietetic advice; consult a registered dietitian or
-          physician for individualized guidance.
+          <strong>Disclaimer:</strong> This site is provided for general informational and
+          educational purposes only, as a quick reference. It is not medical, nutritional,
+          or dietetic advice and is not a substitute for professional care. Always follow
+          the recommendations of your physician or a registered dietitian, and verify all
+          ingredient and allergen information on the physical product packaging before
+          consuming. Individual needs vary; consult a qualified professional before making
+          significant dietary or exercise changes.
+          <br /><br />
+          Sources: reference values adapted from the U.S. Dietary Reference Intakes
+          (National Academies) and the Dietary Guidelines for Americans; food composition
+          data from USDA FoodData Central (fdc.nal.usda.gov) and Open Food Facts; built-in
+          quick-list figures are approximate. Fitness norms adapted from ACSM/CSEP
+          normative tables and the CDC STEADI program.
         </footer>
       </main>
     </div>
