@@ -231,6 +231,37 @@ const DEFICIT_KEYWORDS = {
   vitD: ["salmon", "sardine", "mackerel", "trout", "tuna", "egg", "fortified", "mushroom"],
 };
 
+// Google-search recipe ideas per nutrient — a wider pool than the built-in
+// cards. Pages draw from here without repeating phrases the user has skipped.
+const GOOGLE_IDEAS = {
+  protein: ["high protein chicken meal prep", "baked salmon recipe easy", "slow cooker pulled pork", "tofu stir fry high protein", "greek yogurt protein bowl", "turkey chili recipe"],
+  fiber: ["high fiber lentil soup", "overnight oats with chia", "black bean tacos recipe", "roasted vegetable grain bowl", "barley mushroom soup", "chickpea salad sandwich"],
+  calcium: ["yogurt smoothie recipes", "baked tofu with sesame", "sardine toast recipe", "kale caesar salad recipe", "cheesy broccoli bake", "chia pudding with fortified milk"],
+  iron: ["beef and broccoli stir fry", "lentil curry dal recipe", "spinach and chickpea stew", "steak fajitas recipe", "clam pasta recipe", "tofu spinach scramble"],
+  potassium: ["loaded baked potato healthy", "white bean soup recipe", "banana oat pancakes", "avocado toast variations", "butternut squash soup", "salmon sweet potato bowl"],
+  vitC: ["stuffed bell peppers recipe", "citrus salad with fennel", "strawberry spinach salad", "garlic broccoli stir fry", "tomato gazpacho recipe", "kiwi smoothie recipes"],
+  vitD: ["sheet pan salmon dinner", "tuna poke bowl recipe", "mushroom omelette recipe", "sardine pasta puttanesca", "baked trout with lemon", "egg breakfast burrito"],
+};
+
+// Pick up to 4 unused search ideas, round-robin across nutrients for variety.
+function genSearchPage(keys, used) {
+  const byK = {};
+  for (const k of keys) {
+    const arr = (GOOGLE_IDEAS[k] || []).filter(q => !used.has(q));
+    if (arr.length) byK[k] = [...arr];
+  }
+  const ks = Object.keys(byK);
+  const picks = [];
+  let i = 0;
+  while (picks.length < 4 && ks.length > 0) {
+    const k = ks[i % ks.length];
+    picks.push({ k, q: byK[k].shift() });
+    if (byK[k].length === 0) ks.splice(i % ks.length, 1);
+    else i++;
+  }
+  return picks;
+}
+
 function citrusRecipeHelps(recipe, deficits) {
   const text = (((recipe.ingredients || []).join(" ")) + " " + (recipe.title || "")).toLowerCase();
   return deficits.filter(k => (DEFICIT_KEYWORDS[k] || []).some(w => text.includes(w)));
@@ -260,7 +291,6 @@ function fdcToFood(item) {
     const key = FDC_NUTRIENTS[n.nutrientId];
     if (key && typeof n.value === "number") food[key] = n.value;
   }
-  if (item.brandOwner) food.name += ` — ${item.brandOwner}`;
   if (item.ingredients) food.ingredients = String(item.ingredients);
   if (typeof item.servingSize === "number" && item.servingSize > 0 &&
       /^(g|grm|gram|ml|mlt)/i.test(String(item.servingSizeUnit || ""))) {
@@ -288,10 +318,9 @@ async function searchFdc(query) {
 function offToFood(p) {
   const n = p.nutriments || {};
   const g = (k) => Number(n[k + "_100g"]) || 0; // OFF stores per-100g values in grams
-  const brand = p.brands ? ` — ${p.brands.split(",")[0]}` : "";
   return {
     ...ZERO,
-    name: (p.product_name || "Unnamed product") + brand,
+    name: p.product_name || "Unnamed product",
     serving: "100 g", per100g: true,
     kcal: Number(n["energy-kcal_100g"]) || 0,
     protein: g("proteins"), carb: g("carbohydrates"), fat: g("fat"), fiber: g("fiber"),
@@ -1318,16 +1347,161 @@ function guessAmount(line) {
   return { amt: Math.round(n * 100) / 100, unit: map[m[2]] || "g" };
 }
 
+
+/* ------------------------------------------------------------------ */
+/*  Recipe-ingredient library — common pantry items (oils, sugars,    */
+/*  flours, aromatics, sauces, spices) with per-100 g values and      */
+/*  realistic cup/piece weights, so imported recipes auto-match       */
+/*  instead of requiring line-by-line lookups. The 120-item quick     */
+/*  list serves as a second tier for whole foods.                     */
+/*  Fields: kw (match keywords), n (per-100g: kcal,prot,carb,fat,     */
+/*  fiber,Ca,Fe,K,Na,vitC,vitD), cupG (g per cup), pieceG, defG.      */
+/* ------------------------------------------------------------------ */
+
+const ING_DB = [
+  { kw: ["canola oil", "vegetable oil", "peanut oil", "sunflower oil", "avocado oil", "cooking oil"], n: [884, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0], cupG: 218 },
+  { kw: ["olive oil"], n: [884, 0, 0, 100, 0, 1, 0.1, 1, 2, 0, 0], cupG: 216 },
+  { kw: ["sesame oil"], n: [884, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0], cupG: 218 },
+  { kw: ["coconut oil"], n: [862, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0], cupG: 218 },
+  { kw: ["butter"], n: [717, 0.9, 0.1, 81, 0, 24, 0, 24, 640, 0, 1.5], cupG: 227, pieceG: 14 },
+  { kw: ["sugar", "granulated"], n: [387, 0, 100, 0, 0, 1, 0.1, 2, 1, 0, 0], cupG: 200 },
+  { kw: ["brown sugar"], n: [380, 0, 98, 0, 0, 83, 0.7, 133, 28, 0, 0], cupG: 220 },
+  { kw: ["powdered sugar", "confectioner"], n: [389, 0, 100, 0, 0, 1, 0.1, 2, 2, 0, 0], cupG: 120 },
+  { kw: ["honey"], n: [304, 0.3, 82, 0, 0.2, 6, 0.4, 52, 4, 0.5, 0], cupG: 340 },
+  { kw: ["maple syrup"], n: [260, 0, 67, 0, 0, 102, 0.1, 212, 12, 0, 0], cupG: 322 },
+  { kw: ["all-purpose flour", "all purpose flour", "flour"], n: [364, 10.3, 76, 1, 2.7, 15, 4.6, 107, 2, 0, 0], cupG: 120 },
+  { kw: ["whole wheat flour"], n: [340, 13.2, 72, 2.5, 10.7, 34, 3.6, 363, 2, 0, 0], cupG: 120 },
+  { kw: ["cornstarch", "corn starch"], n: [381, 0.3, 91, 0, 0.9, 2, 0.5, 3, 9, 0, 0], cupG: 128 },
+  { kw: ["breadcrumb", "panko"], n: [395, 13.4, 72, 5.3, 4.5, 183, 4.8, 196, 732, 0, 0], cupG: 108 },
+  { kw: ["rolled oats", "old-fashioned oats", "quick oats"], n: [379, 13.2, 68, 6.5, 10.1, 52, 4.3, 362, 6, 0, 0], cupG: 81 },
+  { kw: ["garlic"], n: [149, 6.4, 33, 0.5, 2.1, 181, 1.7, 401, 17, 31, 0], pieceG: 3, cupG: 136 },
+  { kw: ["onion", "yellow onion", "red onion", "white onion"], n: [40, 1.1, 9.3, 0.1, 1.7, 23, 0.2, 146, 4, 7.4, 0], pieceG: 110, cupG: 160 },
+  { kw: ["shallot"], n: [72, 2.5, 17, 0.1, 3.2, 37, 1.2, 334, 12, 8, 0], pieceG: 30 },
+  { kw: ["scallion", "green onion"], n: [32, 1.8, 7.3, 0.2, 2.6, 72, 1.5, 276, 16, 18.8, 0], pieceG: 15 },
+  { kw: ["ginger"], n: [80, 1.8, 18, 0.8, 2, 16, 0.6, 415, 13, 5, 0], cupG: 96, defG: 8 },
+  { kw: ["salt", "kosher salt", "sea salt"], n: [0, 0, 0, 0, 0, 24, 0.3, 8, 38758, 0, 0], cupG: 288, defG: 3 },
+  { kw: ["black pepper", "pepper"], n: [251, 10.4, 64, 3.3, 25, 443, 9.7, 1329, 20, 0, 0], cupG: 110, defG: 1 },
+  { kw: ["soy sauce"], n: [53, 8.1, 4.9, 0.6, 0.8, 33, 1.5, 435, 5493, 0, 0], cupG: 255 },
+  { kw: ["fish sauce"], n: [35, 5.1, 3.6, 0, 0, 43, 0.8, 288, 7850, 0.5, 0], cupG: 288 },
+  { kw: ["oyster sauce"], n: [51, 1.4, 11, 0.3, 0.3, 32, 0.2, 54, 2733, 0, 0], cupG: 288 },
+  { kw: ["worcestershire"], n: [78, 0, 19, 0, 0, 107, 5.3, 800, 980, 13, 0], cupG: 275 },
+  { kw: ["hot sauce", "sriracha"], n: [93, 1.9, 19, 0.9, 2.2, 18, 1.6, 321, 2124, 27, 0], cupG: 260, defG: 10 },
+  { kw: ["vinegar", "rice vinegar", "white vinegar", "apple cider vinegar", "balsamic"], n: [21, 0, 0.9, 0, 0, 6, 0.2, 73, 2, 0, 0], cupG: 240 },
+  { kw: ["lemon juice"], n: [22, 0.4, 6.9, 0.2, 0.3, 6, 0.1, 103, 1, 38.7, 0], cupG: 244 },
+  { kw: ["lime juice"], n: [25, 0.4, 8.4, 0.1, 0.4, 14, 0.1, 117, 2, 30, 0], cupG: 242 },
+  { kw: ["tomato paste"], n: [82, 4.3, 19, 0.5, 4.1, 36, 3, 1014, 59, 21.9, 0], cupG: 262 },
+  { kw: ["tomato sauce", "marinara", "crushed tomato", "diced tomato", "canned tomato"], n: [32, 1.6, 7, 0.2, 1.8, 33, 1, 297, 186, 7, 0], cupG: 245 },
+  { kw: ["chicken broth", "chicken stock", "vegetable broth", "vegetable stock", "beef broth", "beef stock", "bone broth"], n: [7, 1, 0.4, 0.2, 0, 4, 0.2, 25, 372, 0, 0], cupG: 240 },
+  { kw: ["coconut milk"], n: [197, 2, 2.8, 21, 0, 18, 3.3, 220, 13, 1, 0], cupG: 226 },
+  { kw: ["heavy cream", "whipping cream"], n: [340, 2.8, 2.8, 36, 0, 66, 0.1, 95, 27, 0.6, 1.1], cupG: 238 },
+  { kw: ["half and half", "half-and-half"], n: [131, 3.1, 4.3, 11.5, 0, 105, 0.1, 130, 41, 0.9, 0.8], cupG: 242 },
+  { kw: ["sour cream"], n: [198, 2.4, 4.6, 19, 0, 101, 0.1, 125, 31, 0.9, 0.3], cupG: 230 },
+  { kw: ["cream cheese"], n: [342, 6.2, 4.1, 34, 0, 97, 0.4, 132, 314, 0, 0.6], cupG: 232, pieceG: 14 },
+  { kw: ["parmesan", "parmigiano", "pecorino"], n: [431, 38, 4.1, 29, 0, 1109, 0.9, 125, 1529, 0, 0.5], cupG: 100, defG: 10 },
+  { kw: ["mustard", "dijon"], n: [66, 4.4, 5.8, 4, 4, 63, 1.6, 152, 1135, 0.3, 0], cupG: 250, defG: 10 },
+  { kw: ["mirin"], n: [226, 0.2, 43, 0, 0, 3, 0.1, 14, 570, 0, 0], cupG: 290 },
+  { kw: ["cooking wine", "white wine", "dry sherry"], n: [83, 0.1, 2.6, 0, 0, 9, 0.3, 71, 5, 0, 0], cupG: 235 },
+  { kw: ["baking powder"], n: [53, 0, 28, 0, 0.2, 5876, 11, 20, 10600, 0, 0], cupG: 221, defG: 4 },
+  { kw: ["baking soda"], n: [0, 0, 0, 0, 0, 0, 0, 0, 27360, 0, 0], cupG: 221, defG: 3 },
+  { kw: ["vanilla extract", "vanilla"], n: [288, 0.1, 12.7, 0.1, 0, 11, 0.1, 148, 9, 0, 0], cupG: 208, defG: 4 },
+  { kw: ["cocoa powder"], n: [228, 19.6, 58, 13.7, 33, 128, 13.9, 1524, 21, 0, 0], cupG: 86 },
+  { kw: ["chocolate chip"], n: [479, 4.2, 63, 30, 5.9, 32, 3.1, 365, 11, 0, 0], cupG: 170 },
+  { kw: ["yeast"], n: [325, 40, 41, 7.6, 27, 30, 2.2, 955, 51, 0, 0], defG: 7 },
+  { kw: ["sesame seed"], n: [573, 17.7, 23, 50, 11.8, 975, 14.6, 468, 11, 0, 0], cupG: 144, defG: 8 },
+  { kw: ["chicken thigh"], n: [232, 23.3, 0, 15, 0, 11, 1.3, 230, 84, 0, 0.1], pieceG: 90 },
+  { kw: ["chicken wing"], n: [266, 24.8, 0, 18, 0, 14, 1.2, 178, 82, 0, 0.2], pieceG: 45 },
+  { kw: ["ground pork"], n: [263, 22.2, 0, 18.9, 0, 20, 1, 314, 62, 0, 0.6], },
+  { kw: ["ground chicken"], n: [189, 23.3, 0, 10.2, 0, 9, 0.9, 246, 77, 0, 0.1], },
+  { kw: ["ground lamb"], n: [283, 24.5, 0, 19.7, 0, 17, 1.8, 310, 71, 0, 0.1], },
+  { kw: ["cumin", "paprika", "oregano", "basil", "thyme", "rosemary", "chili powder", "curry powder", "turmeric", "cinnamon", "coriander", "garam masala", "italian seasoning", "bay lea", "red pepper flake", "nutmeg", "allspice", "dill", "cayenne", "smoked paprika", "five spice", "za'atar", "herbes"], n: [300, 12, 55, 10, 30, 500, 20, 1200, 30, 2, 0], cupG: 96, defG: 2 },
+  { kw: ["parsley", "cilantro", "mint", "fresh basil", "chives", "fresh dill"], n: [36, 3, 6.3, 0.8, 3.3, 138, 6.2, 554, 56, 133, 0], cupG: 60, defG: 5 },
+];
+
+const FRACTION_RE = /(\d+\s+\d\/\d|\d+\/\d|\d+(?:\.\d+)?|[\u00bd\u2153\u2154\u00bc\u00be\u215b])/;
+
+function parseCount(line) {
+  const m = line.trim().match(new RegExp("^" + FRACTION_RE.source));
+  if (!m) return null;
+  const tok = m[1];
+  if (FRACTIONS[tok]) return FRACTIONS[tok];
+  if (tok.includes("/")) {
+    let v = 0;
+    for (const part of tok.split(/\s+/)) {
+      if (part.includes("/")) { const [a, b] = part.split("/"); v += Number(a) / Number(b); }
+      else v += Number(part);
+    }
+    return v;
+  }
+  return Number(tok);
+}
+
+// Try to resolve one ingredient line entirely offline.
+// Returns { food (per-100g), grams, label } or null when no confident match.
+function autoMatchLine(line) {
+  const low = line.toLowerCase();
+  // Tier 1: pantry library (longest keyword wins to prefer "brown sugar" over "sugar")
+  let best = null, bestLen = 0;
+  for (const e of ING_DB) {
+    for (const kw of e.kw) {
+      if (low.includes(kw) && kw.length > bestLen) { best = { entry: e, kw }; bestLen = kw.length; }
+    }
+  }
+  let per100 = null, name = null, pieceG = null, cupG = null, defG = null;
+  if (best) {
+    const [kcal, protein, carb, fat, fiber, calcium, iron, potassium, sodium, vitC, vitD] = best.entry.n;
+    per100 = { kcal, protein, carb, fat, fiber, calcium, iron, potassium, sodium, vitC, vitD };
+    name = best.kw.replace(/\b\w/g, c => c.toUpperCase());
+    pieceG = best.entry.pieceG; cupG = best.entry.cupG; defG = best.entry.defG;
+  } else {
+    // Tier 2: quick-list whole foods, converted to per-100 g
+    let hit = null, hitLen = 0;
+    for (const f of FOODS) {
+      const key = f.name.split(",")[0].toLowerCase().replace(/\s*\d+%?/g, "").trim();
+      if (key.length >= 3 && low.includes(key) && key.length > hitLen) { hit = f; hitLen = key.length; }
+    }
+    if (!hit) return null;
+    per100 = {};
+    for (const k of KEYS) per100[k] = ((hit[k] || 0) / hit.grams) * 100;
+    name = hit.name; pieceG = hit.grams;
+  }
+  // Amount -> grams
+  let grams = null;
+  const gm = guessAmount(line);
+  if (gm) {
+    const per = { g: 1, ml: 1, oz: 28.35, lb: 453.6, tsp: cupG ? cupG / 48 : 5, tbsp: cupG ? cupG / 16 : 15, cup: cupG || 240 };
+    grams = gm.amt * (per[gm.unit] || 1);
+  } else {
+    const count = parseCount(line);
+    if (count && pieceG) grams = count * pieceG;
+    else grams = defG || pieceG || 30;
+  }
+  grams = Math.max(0.5, Math.round(grams * 10) / 10);
+  const food = { ...ZERO, ...per100, name, serving: "100 g", per100g: true };
+  return { food, grams, label: `~${Math.round(grams)} g (auto)` };
+}
+
 function RecipeImport({ req, onCancel, onComplete }) {
   const lines = (req.ingredients || []).map(l => String(l).trim()).filter(Boolean);
-  const [idx, setIdx] = useState(0);
-  const [matched, setMatched] = useState([]);
-  const [q, setQ] = useState(lines[0] ? cleanIngredient(lines[0]) : "");
+
+  // Auto-match every line once, up front.
+  const [matched, setMatched] = useState(() => {
+    const out = [];
+    for (const line of lines) {
+      const hit = autoMatchLine(line);
+      if (hit) out.push({ line, food: hit.food, mult: hit.grams / 100, grams: hit.grams, label: hit.label, auto: true });
+    }
+    return out;
+  });
+  const [pending, setPending] = useState(() => lines.filter(l => !autoMatchLine(l)));
+  const autoCount = useState(() => matched.length)[0];
+
+  // manual matcher (only for pending lines)
+  const [q, setQ] = useState(pending[0] ? cleanIngredient(pending[0]) : "");
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [sel, setSel] = useState(null);
-  const g0 = lines[0] ? guessAmount(lines[0]) : null;
+  const g0 = pending[0] ? guessAmount(pending[0]) : null;
   const [amt, setAmt] = useState(g0 ? g0.amt : 100);
   const [unit, setUnit] = useState(g0 ? g0.unit : "g");
   const [qty, setQty] = useState(1);
@@ -1337,35 +1511,35 @@ function RecipeImport({ req, onCancel, onComplete }) {
   });
   const [servingsEaten, setServingsEaten] = useState(1);
 
-  const done = idx >= lines.length;
-  const line = lines[idx];
+  const line = pending[0];
+  const done = pending.length === 0;
   const localMatches = q ? FOODS.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 4) : [];
 
-  const advance = (entry) => {
+  const advancePending = (entry) => {
     if (entry) setMatched(m => [...m, entry]);
-    const ni = idx + 1;
-    setIdx(ni);
+    const rest = pending.slice(1);
+    setPending(rest);
     setSel(null); setResults([]); setErr("");
-    if (ni < lines.length) {
-      setQ(cleanIngredient(lines[ni]));
-      const g = guessAmount(lines[ni]);
+    if (rest[0]) {
+      setQ(cleanIngredient(rest[0]));
+      const g = guessAmount(rest[0]);
       setAmt(g ? g.amt : 100); setUnit(g ? g.unit : "g"); setQty(1);
     }
   };
 
   const confirm = () => {
     if (!sel) return;
-    let mult, label;
+    let mult, label, grams = null;
     if (sel.per100g) {
       const u = UNITS[unit];
-      const grams = (Number(amt) || 100) * u.grams;
+      grams = (Number(amt) || 100) * u.grams;
       mult = grams / 100;
-      label = unit === "g" ? `${Math.round(grams)} g` : `${amt} ${u.label} (~${Math.round(grams)} g)`;
+      label = `${Math.round(grams)} g`;
     } else {
       mult = Number(qty) || 1;
-      label = `${mult} × ${sel.serving}`;
+      label = `${mult} \u00d7 ${sel.serving}`;
     }
-    advance({ line, food: sel, mult, label });
+    advancePending({ line, food: sel, mult, grams, label, auto: false });
   };
 
   const runSearch = async () => {
@@ -1374,8 +1548,29 @@ function RecipeImport({ req, onCancel, onComplete }) {
     try {
       const foods = await searchFdc(q.trim());
       setResults(foods);
-      if (foods.length === 0) setErr("No matches — reword the search or skip this line.");
+      if (foods.length === 0) setErr("No matches — reword or skip.");
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+
+  const editGrams = (i, raw) => {
+    const g = Number(raw);
+    setMatched(m => m.map((e, j) => {
+      if (j !== i || !(g >= 0) || e.grams == null) return e;
+      return { ...e, grams: g, mult: g / 100, label: `${Math.round(g)} g` };
+    }));
+  };
+
+  const rematch = (i) => {
+    const e = matched[i];
+    setMatched(m => m.filter((_, j) => j !== i));
+    setPending(pd => {
+      const next = [e.line, ...pd];
+      setQ(cleanIngredient(e.line));
+      const g = guessAmount(e.line);
+      setAmt(g ? g.amt : 100); setUnit(g ? g.unit : "g"); setQty(1);
+      setSel(null); setResults([]);
+      return next;
+    });
   };
 
   const totals = useMemo(() => {
@@ -1388,21 +1583,48 @@ function RecipeImport({ req, onCancel, onComplete }) {
     <section className="na-panel" style={{ padding: "18px 20px 20px", borderLeft: `3px solid ${C.accent}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
         <h2 className="na-serif" style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-          Import from Citrus&Spice: {req.title}
+          Import: {req.title}
         </h2>
         <button className="na-btn na-btn-quiet" onClick={onCancel} style={{ padding: "5px 12px" }}>Cancel</button>
       </div>
 
+      <p className="na-mono" style={{ margin: "0 0 10px", fontSize: 12, color: C.ok }}>
+        ✓ Auto-matched {autoCount} of {lines.length} ingredients from the pantry library
+        {pending.length > 0 ? ` — ${pending.length} to review below` : ""}.
+      </p>
+
+      {matched.length > 0 && (
+        <div style={{ marginBottom: 12, maxHeight: 250, overflowY: "auto", border: `1px solid ${C.rule}`, borderRadius: 10, padding: "4px 10px" }}>
+          {matched.map((e, i) => (
+            <div key={e.line + i} style={{ display: "flex", alignItems: "center", gap: 8, borderTop: i ? `1px dashed ${C.rule}` : "none", padding: "6px 0", fontSize: 12.5 }}>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ color: C.faint }}>{e.line}</span>
+                <span style={{ display: "block" }}>→ {e.food.name}</span>
+              </span>
+              {e.grams != null ? (
+                <span style={{ whiteSpace: "nowrap" }}>
+                  <input className="na-input" type="number" min="0" step="any" value={e.grams}
+                    onChange={ev => editGrams(i, ev.target.value)}
+                    style={{ width: 62, padding: "3px 6px", fontSize: 12, textAlign: "right" }} /> g
+                </span>
+              ) : (
+                <span className="na-mono" style={{ fontSize: 11.5, color: C.faint }}>{e.label}</span>
+              )}
+              <button onClick={() => rematch(i)} aria-label={`Re-match ${e.line}`}
+                style={{ border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 12 }}>
+                re-match
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {!done ? (
         <>
-          <p className="na-mono" style={{ margin: "0 0 4px", fontSize: 12, color: C.faint }}>
-            Ingredient {idx + 1} of {lines.length} · {matched.length} matched
-          </p>
-          <p style={{ margin: "0 0 12px", fontSize: 14.5, fontWeight: 600 }}>“{line}”</p>
-
+          <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 600 }}>Match: “{line}”</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div style={{ flex: "1 1 200px" }}>
-              <Field label="Match to food">
+              <Field label="Search">
                 <input className="na-input" value={sel ? sel.name : q}
                   onChange={e => { setSel(null); setQ(e.target.value); }}
                   onKeyDown={e => { if (e.key === "Enter") runSearch(); }} />
@@ -1427,29 +1649,20 @@ function RecipeImport({ req, onCancel, onComplete }) {
                 </Field>
               )}
             </div>
-            <button className="na-btn" onClick={confirm} disabled={!sel} style={{ opacity: sel ? 1 : 0.45 }}>Confirm match</button>
-            <button className="na-btn na-btn-quiet" onClick={() => advance(null)}>Skip line</button>
+            <button className="na-btn" onClick={confirm} disabled={!sel} style={{ opacity: sel ? 1 : 0.45 }}>Confirm</button>
+            <button className="na-btn na-btn-quiet" onClick={() => advancePending(null)}>Skip</button>
           </div>
-
           {err && <p role="alert" style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: C.high }}>{err}</p>}
-
           {(results.length > 0 || localMatches.length > 0) && !sel && (
             <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0, border: `1px solid ${C.rule}`, borderRadius: 10, maxHeight: 200, overflowY: "auto" }}>
-              {results.map((f, i) => (
-                <li key={"u" + i} style={{ borderTop: i ? `1px solid ${C.rule}` : "none" }}>
+              {(results.length > 0 ? results : localMatches).map((f, i) => (
+                <li key={i} style={{ borderTop: i ? `1px solid ${C.rule}` : "none" }}>
                   <button onClick={() => setSel(f)}
                     style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
                     <span>{f.name}</span>
-                    <span className="na-mono" style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}>{Math.round(f.kcal)} kcal / 100 g</span>
-                  </button>
-                </li>
-              ))}
-              {results.length === 0 && localMatches.map((f, i) => (
-                <li key={"l" + i} style={{ borderTop: i ? `1px solid ${C.rule}` : "none" }}>
-                  <button onClick={() => setSel(f)}
-                    style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
-                    <span>{f.name}</span>
-                    <span className="na-mono" style={{ color: C.faint, fontSize: 12 }}>{f.serving} · quick list</span>
+                    <span className="na-mono" style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}>
+                      {f.per100g ? `${Math.round(f.kcal)} kcal / 100 g` : `${f.serving} \u00b7 built-in`}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -1459,8 +1672,8 @@ function RecipeImport({ req, onCancel, onComplete }) {
       ) : (
         <>
           <p style={{ margin: "0 0 12px", fontSize: 13.5 }}>
-            Matched {matched.length} of {lines.length} ingredients · recipe total ≈ {Math.round(totals.kcal)} kcal.
-            {matched.length < lines.length && " Skipped lines are not counted, so totals may run low."}
+            Recipe total ≈ {Math.round(totals.kcal)} kcal from {matched.length} ingredient{matched.length !== 1 ? "s" : ""}.
+            Auto-matched amounts are estimates — adjust grams above if needed.
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div style={{ width: 150 }}>
@@ -1475,7 +1688,7 @@ function RecipeImport({ req, onCancel, onComplete }) {
             </div>
             <button className="na-btn" disabled={matched.length === 0} style={{ opacity: matched.length ? 1 : 0.45 }}
               onClick={() => onComplete({
-                title: req.title, link: req.link || null, matched, totals,
+                title: req.title, link: req.link || null, matched,
                 servingsMade: Math.max(1, Number(servingsMade) || 1),
                 servingsEaten: Number(servingsEaten) || 1,
               })}>
@@ -1757,10 +1970,12 @@ export default function NutritionAssessment() {
   const [searchError, setSearchError] = useState("");
   const [showCustom, setShowCustom] = useState(false);
   const [openLogId, setOpenLogId] = useState(null);
+  const [hideSuggest, setHideSuggest] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
   const [bonusMsg, setBonusMsg] = useState("");
-  const [recSeed, setRecSeed] = useState(0);
+  const [recPage, setRecPage] = useState(0);
+  const [ideaPages, setIdeaPages] = useState([]);
   const [macroStyle, setMacroStyle] = useState("standard");
   const [customBands, setCustomBands] = useState({ carb: [45, 65], protein: [10, 35], fat: [20, 35] });
   const [custom, setCustom] = useState({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
@@ -1985,15 +2200,38 @@ export default function NutritionAssessment() {
   const deficits = useMemo(() => TRACKED.filter(k => pctOf(k) < 80), [totals, targets]); // eslint-disable-line
 
   const recommendations = useMemo(() => {
-    if (log.length === 0) return { mode: "plan", recipes: SAMPLE_DAYS[recSeed % SAMPLE_DAYS.length] };
+    if (log.length === 0) return { mode: "plan", recipes: SAMPLE_DAYS[recPage % SAMPLE_DAYS.length] };
     if (deficits.length === 0) return { mode: "met", recipes: [] };
     const ranked = [...RECIPES]
       .map(r => ({ r, score: r.richIn.filter(k => deficits.includes(k)).length }))
       .filter(x => x.score > 0)
       .sort((a, b) => b.score - a.score)
       .map(x => x.r);
-    return { mode: "catchup", recipes: rotatePick(ranked, recSeed) };
-  }, [log.length, deficits, recSeed]);
+    return { mode: "catchup", recipes: rotatePick(ranked, recPage) };
+  }, [log.length, deficits, recPage]);
+
+  // Search-idea paging: reset when the gap set changes; Next never repeats a
+  // phrase the user has already been shown (i.e. skipped), until the pool runs
+  // out and a fresh cycle starts.
+  const ideaKeys = log.length === 0 ? TRACKED : deficits;
+  const ideaSig = ideaKeys.join(",") + (log.length === 0 ? ":plan" : ":catchup");
+  useEffect(() => {
+    setIdeaPages([genSearchPage(ideaKeys, new Set())]);
+    setRecPage(0);
+  }, [ideaSig]); // eslint-disable-line
+
+  const nextIdeas = () => {
+    setRecPage(pg => {
+      const next = pg + 1;
+      if (next < ideaPages.length) return next;
+      const used = new Set(ideaPages.flat().map(x => x.q));
+      let picks = genSearchPage(ideaKeys, used);
+      if (picks.length === 0) picks = genSearchPage(ideaKeys, new Set()); // pool exhausted — fresh cycle
+      setIdeaPages(ps => [...ps, picks]);
+      return next;
+    });
+  };
+  const prevIdeas = () => setRecPage(pg => Math.max(0, pg - 1));
 
   const matches = query.length > 0
     ? FOODS.filter(f => f.name.toLowerCase().includes(query.toLowerCase())).slice(0, 7)
@@ -2382,15 +2620,20 @@ export default function NutritionAssessment() {
                     <input
                       className="na-input" value={selected ? selected.name : query}
                       placeholder="e.g. oatmeal, salmon, spinach…"
-                      onChange={(e) => { setSelected(null); setQuery(e.target.value); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") runUsdaSearch(); }}
+                      onChange={(e) => { setSelected(null); setQuery(e.target.value); setHideSuggest(false); }}
+                      onFocus={() => setHideSuggest(false)}
+                      onBlur={() => setTimeout(() => setHideSuggest(true), 150)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { setHideSuggest(true); runUsdaSearch(); }
+                        if (e.key === "Escape") setHideSuggest(true);
+                      }}
                     />
                   </Field>
-                  {matches.length > 0 && !selected && usdaResults.length === 0 && (
+                  {matches.length > 0 && !selected && usdaResults.length === 0 && !hideSuggest && (
                     <ul style={{ position: "absolute", zIndex: 5, left: 0, right: 0, top: "100%", margin: 0, padding: 0, listStyle: "none", background: "#fff", border: `1px solid ${C.rule}`, borderTop: "none", boxShadow: "0 6px 16px rgba(24,36,48,0.12)" }}>
                       {matches.map(f => (
                         <li key={f.name}>
-                          <button onClick={() => chooseFood(f)}
+                          <button onMouseDown={(e) => { e.preventDefault(); chooseFood(f); }}
                             style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 10px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
                             <span>{f.name}</span>
                             <span className="na-mono" style={{ color: C.faint, fontSize: 12 }}>
@@ -2814,7 +3057,7 @@ export default function NutritionAssessment() {
                     const hits = rotatePick(citrusRecipes
                       .map(r => ({ r, helps: citrusRecipeHelps(r, deficits) }))
                       .filter(x => x.helps.length > 0)
-                      .sort((a, b) => b.helps.length - a.helps.length), recSeed);
+                      .sort((a, b) => b.helps.length - a.helps.length), recPage);
                     if (hits.length === 0) return null;
                     return (
                       <>
@@ -2851,7 +3094,7 @@ export default function NutritionAssessment() {
                 const hits = rotatePick(citrusRecipes
                   .map(r => ({ r, helps: citrusRecipeHelps(r, TRACKED) }))
                   .filter(x => x.helps.length > 0)
-                  .sort((a, b) => b.helps.length - a.helps.length), recSeed);
+                  .sort((a, b) => b.helps.length - a.helps.length), recPage);
                 if (hits.length === 0) return null;
                 return (
                   <>
@@ -2896,11 +3139,31 @@ export default function NutritionAssessment() {
                   ))}
                 </div>
               )}
+              {recommendations.mode !== "met" && (ideaPages[recPage] || []).length > 0 && (
+                <>
+                  <div className="na-eyebrow" style={{ margin: "18px 0 8px" }}>More recipe searches</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {(ideaPages[recPage] || []).map(({ q, k }) => (
+                      <a key={q} href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noopener"
+                        style={{ display: "inline-flex", alignItems: "baseline", gap: 6, padding: "8px 13px", background: "#fff", border: `1px solid ${C.rule}`, borderRadius: 999, fontSize: 12.5, color: C.ink, textDecoration: "none" }}>
+                        {q}
+                        <span className="na-mono" style={{ fontSize: 10.5, color: C.accent }}>{LABELS[k]}</span>
+                      </a>
+                    ))}
+                  </div>
+                </>
+              )}
               {recommendations.mode !== "met" && (
-                <button className="na-btn na-btn-quiet" onClick={() => setRecSeed(s => s + 1)}
-                  style={{ marginTop: 14 }}>
-                  Show different ideas
-                </button>
+                <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
+                  <button className="na-btn na-btn-quiet" onClick={prevIdeas} disabled={recPage === 0}
+                    style={{ opacity: recPage === 0 ? 0.45 : 1 }}>
+                    ← Previous
+                  </button>
+                  <button className="na-btn na-btn-quiet" onClick={nextIdeas}>
+                    More ideas →
+                  </button>
+                  <span className="na-mono" style={{ fontSize: 11.5, color: C.faint }}>page {recPage + 1}</span>
+                </div>
               )}
             </section>
           </>
