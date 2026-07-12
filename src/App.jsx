@@ -533,7 +533,18 @@ const RECIPES = [
     richIn: ["potassium", "fiber", "protein", "iron"] },
 ];
 
-const SAMPLE_DAY = [RECIPES[6], RECIPES[4], RECIPES[0]]; // breakfast, lunch, dinner
+const SAMPLE_DAYS = [
+  [RECIPES[6], RECIPES[4], RECIPES[0]],
+  [RECIPES[7], RECIPES[1], RECIPES[8]],
+  [RECIPES[2], RECIPES[5], RECIPES[3]],
+];
+
+// Rotate through a ranked list so "show different ideas" cycles instead of repeats.
+function rotatePick(list, seed, n = 3) {
+  if (list.length === 0) return [];
+  const off = (seed * n) % list.length;
+  return Array.from({ length: Math.min(n, list.length) }, (_, i) => list[(off + i) % list.length]);
+}
 
 /* ------------------------------------------------------------------ */
 /*  History storage — persists via window.storage (Claude artifacts), */
@@ -956,10 +967,8 @@ function LabelInfo({ food, onUpdate }) {
         </>
       )}
       <p style={{ margin: "10px 0 0", fontSize: 10.5, color: C.faint, lineHeight: 1.5 }}>
-        Why numbers may differ from your package: databases can lag reformulations,
-        recipes vary by region and batch, per-100 g figures are converted from label
-        servings with rounding, and some entries (Open Food Facts) are community-submitted.
-        Treat the physical package as the authoritative source.
+        Numbers can differ from your package (reformulations, regional variants,
+        rounding, community-submitted data) — the package is authoritative.
       </p>
     </div>
   );
@@ -1252,7 +1261,7 @@ function BarcodeScanner({ onDetect, onClose }) {
           <video ref={videoRef} muted playsInline
             style={{ width: "100%", maxHeight: 260, background: "#000", borderRadius: 8, objectFit: "cover" }} />
           <p className="na-mono" style={{ margin: "8px 0 0", fontSize: 12, color: C.accent, fontWeight: 500 }}>
-            ● Camera active — center the barcode in view. It scans automatically.
+            ● Point at the barcode — scans automatically.
           </p>
         </>
       ) : (
@@ -1751,6 +1760,7 @@ export default function NutritionAssessment() {
   const [showScanner, setShowScanner] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
   const [bonusMsg, setBonusMsg] = useState("");
+  const [recSeed, setRecSeed] = useState(0);
   const [macroStyle, setMacroStyle] = useState("standard");
   const [customBands, setCustomBands] = useState({ carb: [45, 65], protein: [10, 35], fat: [20, 35] });
   const [custom, setCustom] = useState({ name: "", kcal: "", protein: "", carb: "", fat: "", fiber: "", sodium: "" });
@@ -1975,16 +1985,15 @@ export default function NutritionAssessment() {
   const deficits = useMemo(() => TRACKED.filter(k => pctOf(k) < 80), [totals, targets]); // eslint-disable-line
 
   const recommendations = useMemo(() => {
-    if (log.length === 0) return { mode: "plan", recipes: SAMPLE_DAY };
+    if (log.length === 0) return { mode: "plan", recipes: SAMPLE_DAYS[recSeed % SAMPLE_DAYS.length] };
     if (deficits.length === 0) return { mode: "met", recipes: [] };
     const ranked = [...RECIPES]
       .map(r => ({ r, score: r.richIn.filter(k => deficits.includes(k)).length }))
       .filter(x => x.score > 0)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
       .map(x => x.r);
-    return { mode: "catchup", recipes: ranked };
-  }, [log.length, deficits]);
+    return { mode: "catchup", recipes: rotatePick(ranked, recSeed) };
+  }, [log.length, deficits, recSeed]);
 
   const matches = query.length > 0
     ? FOODS.filter(f => f.name.toLowerCase().includes(query.toLowerCase())).slice(0, 7)
@@ -2068,7 +2077,7 @@ export default function NutritionAssessment() {
     const known = barcodes[code];
     if (known) {
       chooseFood(known.food);
-      setScanStatus(`✓ Scan successful (${code}) — from your saved items: ${known.food.name}. Verify the label below, set the amount, then add to log.`);
+      setScanStatus(`✓ ${known.food.name} (saved item) — verify label, set amount, add to log.`);
       const next = { ...barcodes, [code]: { ...known, lastUsed: Date.now() } };
       setBarcodes(next);
       saveStore(userKey(BKEY, currentUser), next);
@@ -2079,7 +2088,7 @@ export default function NutritionAssessment() {
       const food = await lookupBarcode(code);
       food.barcode = code;
       chooseFood(food);
-      setScanStatus(`✓ Found: ${food.name}. Verify the label below, set the amount, then add to log. Saved to your scanned items for next time.`);
+      setScanStatus(`✓ ${food.name} — verify label below, then add. Saved for next time.`);
       const next = { ...barcodes, [code]: { code, food, lastUsed: Date.now() } };
       setBarcodes(next);
       await saveStore(userKey(BKEY, currentUser), next);
@@ -2249,9 +2258,8 @@ export default function NutritionAssessment() {
 
       <div style={{ background: "#ece4d4", borderBottom: `1px solid ${C.rule}` }}>
         <p style={{ maxWidth: 860, margin: "0 auto", padding: "8px 20px", fontSize: 11.5, lineHeight: 1.5, color: "#4a4137" }}>
-          This site is a quick reference for general information only and is not medical
-          advice. Always follow your healthcare provider's recommendations and verify
-          ingredient and allergen information on the product packaging.
+          Quick reference only — not medical advice. Follow your healthcare provider's
+          recommendations and verify product packaging.
         </p>
       </div>
 
@@ -2299,8 +2307,7 @@ export default function NutritionAssessment() {
               {profileOpen ? (
                 <>
                   <p style={{ margin: "0 0 14px", fontSize: 12, color: C.faint, lineHeight: 1.5 }}>
-                    All fields optional — blanks fall back to general adult reference values. Each
-                    person's data is kept separate and stays on this device.
+                    All fields optional. Data stays on this device, separate per person.
                   </p>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
                 <Field label="Age (years)">
@@ -2353,9 +2360,8 @@ export default function NutritionAssessment() {
                   })}
                 </div>
                 <p style={{ margin: "8px 0 0", fontSize: 11, color: C.faint, lineHeight: 1.5 }}>
-                  Foods you select are checked against these by name and ingredient label.
-                  Helpful for spotting conflicts — but database labels can be incomplete, so
-                  for medical allergies always verify the physical package.
+                  Selected foods are checked against these. Database labels can be incomplete
+                  — verify the package for medical allergies.
                 </p>
               </div>
                   <p className="na-mono" style={{ fontSize: 12, color: C.faint, marginTop: 16, marginBottom: 0 }}>
@@ -2371,7 +2377,7 @@ export default function NutritionAssessment() {
 
             {/* ---------- 02 Intake log ---------- */}
             <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
-              <SectionHead num="02" title="Intake log" sub="Type a food — built-in matches appear instantly, Search USDA covers everything else. Or scan a barcode, enter a label, or reuse past items." />
+              <SectionHead num="02" title="Intake log" sub="Type to search, scan a barcode, or reuse past items." />
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
                 <div style={{ flex: "1 1 220px", position: "relative" }}>
@@ -2542,9 +2548,8 @@ export default function NutritionAssessment() {
                     </button>
                     {ocrMsg && <p className="na-mono" style={{ margin: "8px 0 0", fontSize: 12, color: ocrMsg.startsWith("✓") ? C.ok : C.low }}>{ocrMsg}</p>}
                     <p style={{ margin: "6px 0 0", fontSize: 10.5, color: C.faint }}>
-                      Beta: reads the printed nutrition panel with on-device text recognition.
-                      Accuracy varies — always verify. The photo is processed in your browser
-                      and never stored or uploaded.
+                      Beta: on-device text recognition — verify the values. The photo is
+                      never stored or uploaded.
                     </p>
                   </div>
                 </div>
@@ -2552,7 +2557,7 @@ export default function NutritionAssessment() {
 
               {log.length === 0 ? (
                 <p style={{ marginTop: 20, marginBottom: 0, fontSize: 13.5, color: C.faint }}>
-                  No items logged yet. Add the foods you've eaten today to generate an assessment.
+                  Nothing logged yet.
                 </p>
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20, fontSize: 13.5 }}>
@@ -2584,23 +2589,24 @@ export default function NutritionAssessment() {
                         </td>
                         <td className="na-mono" style={{ padding: "8px 4px", textAlign: "right" }}>{Math.round(item.food.kcal * item.qty)}</td>
                         <td style={{ padding: "8px 0 8px 4px", textAlign: "right" }}>
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                            <button onClick={() => setOpenLogId(openLogId === item.id ? null : item.id)}
-                              aria-expanded={openLogId === item.id}
-                              style={{ border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 13, padding: 0 }}>
-                              {openLogId === item.id ? "Hide" : "Details"}
-                            </button>
-                            <button onClick={() => setLog(l => l.filter(x => x.id !== item.id))}
-                              aria-label={`Remove ${item.food.name}`}
-                              style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 13, padding: 0 }}>
-                              Remove
-                            </button>
-                          </div>
+                          <button onClick={() => setOpenLogId(openLogId === item.id ? null : item.id)}
+                            aria-expanded={openLogId === item.id}
+                            style={{ border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 13, padding: 0 }}>
+                            {openLogId === item.id ? "Hide" : "Details"}
+                          </button>
                         </td>
                       </tr>
                       {openLogId === item.id && (
                         <tr>
-                          <td colSpan={4} style={{ padding: "0 0 10px" }}><LabelInfo food={item.food} /></td>
+                          <td colSpan={4} style={{ padding: "0 0 10px" }}>
+                            <LabelInfo food={item.food} />
+                            <button className="na-btn na-btn-quiet"
+                              onClick={() => { setLog(l => l.filter(x => x.id !== item.id)); setOpenLogId(null); }}
+                              aria-label={`Remove ${item.food.name} from log`}
+                              style={{ marginTop: 10, padding: "8px 16px", fontSize: 13, color: C.high, borderColor: C.rule }}>
+                              Remove from log
+                            </button>
+                          </td>
                         </tr>
                       )}
                       </React.Fragment>
@@ -2618,7 +2624,7 @@ export default function NutritionAssessment() {
 
             {/* ---------- 03 Assessment ---------- */}
             <section className="na-panel" style={{ padding: "22px 22px 10px" }}>
-              <SectionHead num="03" title="Assessment" sub="Intake versus reference targets. The vertical mark on each scale indicates 100% of target." />
+              <SectionHead num="03" title="Assessment" sub="Intake vs. targets — the mark on each bar is 100%." />
               {log.length === 0 ? (
                 <p style={{ fontSize: 13.5, color: C.faint, paddingBottom: 14 }}>The report populates once foods are logged above.</p>
               ) : (
@@ -2665,7 +2671,7 @@ export default function NutritionAssessment() {
                             ))}
                           </ul>
                           <p style={{ margin: "8px 0 0", fontSize: 11, color: C.faint }}>
-                            These plant compounds and extras have no official daily targets, so they are shown for information rather than scored.
+                            No official daily targets — shown for information, not scored.
                           </p>
                         </div>
                       </>
@@ -2673,13 +2679,12 @@ export default function NutritionAssessment() {
                   })()}
 
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "16px 0" }}>
-                    <span style={{ fontSize: 12.5, color: C.faint }}>Days save automatically as you log — see the History tab.</span>
+                    <span style={{ fontSize: 12.5, color: C.faint }}>Auto-saves to History.</span>
                     {saveMsg && <span className="na-mono" style={{ fontSize: 12.5, color: C.ok }}>{saveMsg}</span>}
                   </div>
 
                   <p style={{ fontSize: 12, color: C.faint, paddingBottom: 14, marginTop: 0, lineHeight: 1.55 }}>
-                    Note: custom items track only the nutrients entered, so micronutrient
-                    totals may understate actual intake when custom foods are used.
+                    Custom items count only the nutrients entered.
                   </p>
                 </>
               )}
@@ -2688,8 +2693,7 @@ export default function NutritionAssessment() {
               <div className="na-eyebrow" style={{ margin: "14px 0 2px" }}>Your custom nutrients</div>
               {Object.keys(customNutrients).length === 0 && (
                 <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 10px" }}>
-                  Track anything the standard panel doesn't cover — omega-3s, magnesium,
-                  zinc, caffeine, water. Add one below.
+                  Track extras like omega-3, magnesium, or water.
                 </p>
               )}
               {Object.values(customNutrients).map(cn => (
@@ -2781,11 +2785,8 @@ export default function NutritionAssessment() {
                 </button>
               </div>
               <p style={{ fontSize: 11.5, color: C.faint, margin: "0 0 8px", lineHeight: 1.5 }}>
-                Foods you search, scan, or import are auto-credited for these nutrients when
-                they match the built-in research library (e.g. salmon → omega-3, almonds →
-                magnesium & vitamin E). Coverage is approximate and not exhaustive, so quick-log
-                supplements or label amounts to fill gaps. Reference amounts are general adult
-                values — adjust per your clinician's advice.
+                Known foods are auto-credited from a research library (approximate).
+                Quick-log supplements or label amounts to fill gaps.
               </p>
             </section>
 
@@ -2807,11 +2808,10 @@ export default function NutritionAssessment() {
                     ))}
                   </p>
                   {(() => {
-                    const hits = citrusRecipes
+                    const hits = rotatePick(citrusRecipes
                       .map(r => ({ r, helps: citrusRecipeHelps(r, deficits) }))
                       .filter(x => x.helps.length > 0)
-                      .sort((a, b) => b.helps.length - a.helps.length)
-                      .slice(0, 3);
+                      .sort((a, b) => b.helps.length - a.helps.length), recSeed);
                     if (hits.length === 0) return null;
                     return (
                       <>
@@ -2836,8 +2836,7 @@ export default function NutritionAssessment() {
                           ))}
                         </div>
                         <p style={{ margin: "0 0 14px", fontSize: 11, color: C.faint }}>
-                          Matched by ingredient keywords — approximate. Nutrient tags show which of
-                          today's gaps each recipe likely helps.
+                          Keyword-matched — approximate.
                         </p>
                         <div className="na-eyebrow" style={{ margin: "0 0 8px" }}>Ideas to add to your recipe book</div>
                       </>
@@ -2846,11 +2845,10 @@ export default function NutritionAssessment() {
                 </>
               )}
               {recommendations.mode === "plan" && (() => {
-                const hits = citrusRecipes
+                const hits = rotatePick(citrusRecipes
                   .map(r => ({ r, helps: citrusRecipeHelps(r, TRACKED) }))
                   .filter(x => x.helps.length > 0)
-                  .sort((a, b) => b.helps.length - a.helps.length)
-                  .slice(0, 3);
+                  .sort((a, b) => b.helps.length - a.helps.length), recSeed);
                 if (hits.length === 0) return null;
                 return (
                   <>
@@ -2876,7 +2874,7 @@ export default function NutritionAssessment() {
                       ))}
                     </div>
                     <p style={{ margin: "0 0 14px", fontSize: 11, color: C.faint }}>
-                      Matched by ingredient keywords — approximate.
+                      Keyword-matched — approximate.
                     </p>
                     <div className="na-eyebrow" style={{ margin: "0 0 8px" }}>Or a sample day of ideas to add to your recipe book</div>
                   </>
@@ -2894,6 +2892,12 @@ export default function NutritionAssessment() {
                     <RecipeCard key={r.name} recipe={r} deficits={recommendations.mode === "catchup" ? deficits : null} />
                   ))}
                 </div>
+              )}
+              {recommendations.mode !== "met" && (
+                <button className="na-btn na-btn-quiet" onClick={() => setRecSeed(s => s + 1)}
+                  style={{ marginTop: 14 }}>
+                  Show different ideas
+                </button>
               )}
             </section>
           </>
