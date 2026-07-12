@@ -2249,9 +2249,6 @@ export default function NutritionAssessment() {
                 {label}
               </button>
             ))}
-            <a href={RECIPE_SITE_URL} className="na-tab" style={{ textDecoration: "none", color: C.accent, fontWeight: 500 }}>
-              Recipes ↗
-            </a>
           </nav>
         </div>
       </header>
@@ -2573,7 +2570,17 @@ export default function NutritionAssessment() {
                     {log.map(item => (
                       <React.Fragment key={item.id}>
                       <tr style={{ borderTop: `1px solid ${C.rule}` }}>
-                        <td style={{ padding: "8px 4px", wordBreak: "break-word" }}>{item.food.name} <span style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}>({item.food.serving})</span></td>
+                        <td style={{ padding: "8px 4px", wordBreak: "break-word" }}>
+                          {item.food.name}
+                          {!item.food.per100g && item.food.serving && (
+                            <span style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}> ({item.food.serving})</span>
+                          )}
+                          <button onClick={() => setOpenLogId(openLogId === item.id ? null : item.id)}
+                            aria-expanded={openLogId === item.id}
+                            style={{ display: "block", border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 12.5, padding: "3px 0 0" }}>
+                            {openLogId === item.id ? "Hide details" : "Details"}
+                          </button>
+                        </td>
                         <td className="na-mono" style={{ padding: "8px 4px", whiteSpace: "nowrap" }}>
                           <input className="na-input" type="number" min="0" step="any"
                             value={item.food.per100g ? Math.round(item.qty * 100) : item.qty}
@@ -2589,24 +2596,16 @@ export default function NutritionAssessment() {
                         </td>
                         <td className="na-mono" style={{ padding: "8px 4px", textAlign: "right" }}>{Math.round(item.food.kcal * item.qty)}</td>
                         <td style={{ padding: "8px 0 8px 4px", textAlign: "right" }}>
-                          <button onClick={() => setOpenLogId(openLogId === item.id ? null : item.id)}
-                            aria-expanded={openLogId === item.id}
-                            style={{ border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 13, padding: 0 }}>
-                            {openLogId === item.id ? "Hide" : "Details"}
+                          <button onClick={() => setLog(l => l.filter(x => x.id !== item.id))}
+                            aria-label={`Remove ${item.food.name}`}
+                            style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 13, padding: 0 }}>
+                            Remove
                           </button>
                         </td>
                       </tr>
                       {openLogId === item.id && (
                         <tr>
-                          <td colSpan={4} style={{ padding: "0 0 10px" }}>
-                            <LabelInfo food={item.food} />
-                            <button className="na-btn na-btn-quiet"
-                              onClick={() => { setLog(l => l.filter(x => x.id !== item.id)); setOpenLogId(null); }}
-                              aria-label={`Remove ${item.food.name} from log`}
-                              style={{ marginTop: 10, padding: "8px 16px", fontSize: 13, color: C.high, borderColor: C.rule }}>
-                              Remove from log
-                            </button>
-                          </td>
+                          <td colSpan={4} style={{ padding: "0 0 10px" }}><LabelInfo food={item.food} /></td>
                         </tr>
                       )}
                       </React.Fragment>
@@ -2792,6 +2791,10 @@ export default function NutritionAssessment() {
 
             {/* ---------- 04 Recommendations ---------- */}
             <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
+              <a href={RECIPE_SITE_URL} target="_top" rel="noopener"
+                style={{ float: "right", fontSize: 13, fontWeight: 500, color: C.accent, textDecoration: "none", borderBottom: `1px solid ${C.accent}`, marginTop: 4 }}>
+                Open recipe book ↗
+              </a>
               <SectionHead num="04" title="Meal recommendations"
                 sub={recommendations.mode === "plan"
                   ? "Nothing logged yet — ideas to cover the full nutrient panel, starting with your own recipe book."
