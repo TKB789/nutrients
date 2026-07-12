@@ -593,7 +593,7 @@ const C = {
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 * { box-sizing: border-box; }
-.na-root { font-family: 'Inter', system-ui, sans-serif; color: ${C.ink}; background: ${C.paper}; min-height: 100vh; }
+.na-root { font-family: 'Inter', system-ui, sans-serif; color: ${C.ink}; background: ${C.paper}; min-height: 100vh; overflow-x: hidden; }
 .na-serif { font-family: 'Fraunces', Georgia, serif; letter-spacing: -0.01em; }
 .na-mono { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
 .na-eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; color: ${C.faint}; }
@@ -1808,7 +1808,12 @@ export default function NutritionAssessment() {
   const [addingUser, setAddingUser] = useState(false);
   const hydrated = useRef(false);
 
-  const todayKey = () => new Date().toISOString().slice(0, 10);
+  // Local-timezone day key (toISOString would use UTC and roll the day
+  // over early or late depending on where the user is).
+  const todayKey = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
 
   // Read the Citrus&Spice recipe book (same-origin IndexedDB) once.
   useEffect(() => { readCitrusRecipes().then(setCitrusRecipes); }, []);
@@ -2563,7 +2568,7 @@ export default function NutritionAssessment() {
                     {log.map(item => (
                       <React.Fragment key={item.id}>
                       <tr style={{ borderTop: `1px solid ${C.rule}` }}>
-                        <td style={{ padding: "8px 4px" }}>{item.food.name} <span style={{ color: C.faint, fontSize: 12 }}>({item.food.serving})</span></td>
+                        <td style={{ padding: "8px 4px", wordBreak: "break-word" }}>{item.food.name} <span style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}>({item.food.serving})</span></td>
                         <td className="na-mono" style={{ padding: "8px 4px", whiteSpace: "nowrap" }}>
                           <input className="na-input" type="number" min="0" step="any"
                             value={item.food.per100g ? Math.round(item.qty * 100) : item.qty}
@@ -2578,17 +2583,19 @@ export default function NutritionAssessment() {
                           )}
                         </td>
                         <td className="na-mono" style={{ padding: "8px 4px", textAlign: "right" }}>{Math.round(item.food.kcal * item.qty)}</td>
-                        <td style={{ padding: "8px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
-                          <button onClick={() => setOpenLogId(openLogId === item.id ? null : item.id)}
-                            aria-expanded={openLogId === item.id}
-                            style={{ border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 13, marginRight: 8 }}>
-                            {openLogId === item.id ? "Hide" : "Details"}
-                          </button>
-                          <button onClick={() => setLog(l => l.filter(x => x.id !== item.id))}
-                            aria-label={`Remove ${item.food.name}`}
-                            style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 13 }}>
-                            Remove
-                          </button>
+                        <td style={{ padding: "8px 0 8px 4px", textAlign: "right" }}>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                            <button onClick={() => setOpenLogId(openLogId === item.id ? null : item.id)}
+                              aria-expanded={openLogId === item.id}
+                              style={{ border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 13, padding: 0 }}>
+                              {openLogId === item.id ? "Hide" : "Details"}
+                            </button>
+                            <button onClick={() => setLog(l => l.filter(x => x.id !== item.id))}
+                              aria-label={`Remove ${item.food.name}`}
+                              style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 13, padding: 0 }}>
+                              Remove
+                            </button>
+                          </div>
                         </td>
                       </tr>
                       {openLogId === item.id && (
@@ -2786,7 +2793,7 @@ export default function NutritionAssessment() {
             <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
               <SectionHead num="04" title="Meal recommendations"
                 sub={recommendations.mode === "plan"
-                  ? "Nothing logged yet — here is a sample day designed to meet the full nutrient panel. Tap a title to find full recipes on Google."
+                  ? "Nothing logged yet — ideas to cover the full nutrient panel, starting with your own recipe book."
                   : recommendations.mode === "met"
                     ? "All tracked nutrients are at or near target."
                     : "Meals selected to close today's remaining gaps. Tap a title to find full recipes on Google."} />
@@ -2838,6 +2845,44 @@ export default function NutritionAssessment() {
                   })()}
                 </>
               )}
+              {recommendations.mode === "plan" && (() => {
+                const hits = citrusRecipes
+                  .map(r => ({ r, helps: citrusRecipeHelps(r, TRACKED) }))
+                  .filter(x => x.helps.length > 0)
+                  .sort((a, b) => b.helps.length - a.helps.length)
+                  .slice(0, 3);
+                if (hits.length === 0) return null;
+                return (
+                  <>
+                    <div className="na-eyebrow" style={{ margin: "4px 0 8px", color: C.accent }}>From your Citrus&Spice recipe book — broadest nutrient coverage</div>
+                    <div style={{ display: "grid", gap: 12, marginBottom: 16 }}>
+                      {hits.map(({ r, helps }) => (
+                        <div key={r.id} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 3, padding: "14px 16px", background: "#fff" }}>
+                          <h3 className="na-serif" style={{ margin: "0 0 6px", fontSize: 16.5, fontWeight: 700 }}>
+                            <a href={`${RECIPE_SITE_URL}#recipe-${encodeURIComponent(r.id)}`} target="_top" rel="noopener"
+                              style={{ color: "inherit", textDecoration: "none", borderBottom: `1.5px solid ${C.accent}` }}>
+                              {r.title} <span aria-hidden style={{ color: C.accent, fontSize: 13 }}>↗</span>
+                            </a>
+                          </h3>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            {helps.slice(0, 5).map(k => (
+                              <span key={k} className="na-mono" style={{ fontSize: 11, padding: "3px 8px", background: "#EAF3F4", color: C.accent, borderRadius: 2, fontWeight: 500 }}>
+                                {LABELS[k]}
+                              </span>
+                            ))}
+                            {helps.length > 5 && <span className="na-mono" style={{ fontSize: 11, padding: "3px 4px", color: C.faint }}>+{helps.length - 5} more</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p style={{ margin: "0 0 14px", fontSize: 11, color: C.faint }}>
+                      Matched by ingredient keywords — approximate.
+                    </p>
+                    <div className="na-eyebrow" style={{ margin: "0 0 8px" }}>Or a sample day of ideas to add to your recipe book</div>
+                  </>
+                );
+              })()}
+
               {recommendations.mode === "met" && (
                 <p style={{ marginTop: 0, fontSize: 13.5, color: C.ok, fontWeight: 600 }}>
                   Nice work — today's log meets every tracked target. No catch-up meals needed.
