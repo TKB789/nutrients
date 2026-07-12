@@ -194,6 +194,48 @@ const USDA_API_KEY = "DEMO_KEY";
 // The companion Citrus&Spice recipe site (the Recipes ↗ tab links here).
 const RECIPE_SITE_URL = "https://tkb789.github.io/Recipes/";
 
+// Both sites live on the same origin (tkb789.github.io), so the recipe
+// site's IndexedDB is directly readable here — no transfer needed.
+// Read-only; gracefully returns [] if the database doesn't exist in this
+// browser (e.g. the person hasn't opened the recipe site on this device).
+function readCitrusRecipes() {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("spicycitrus_db");
+      let aborted = false;
+      req.onupgradeneeded = (e) => { aborted = true; try { e.target.transaction.abort(); } catch (err) {} resolve([]); };
+      req.onerror = () => resolve([]);
+      req.onsuccess = () => {
+        if (aborted) return;
+        const db = req.result;
+        if (!db.objectStoreNames.contains("recipes")) { db.close(); resolve([]); return; }
+        try {
+          const all = db.transaction("recipes", "readonly").objectStore("recipes").getAll();
+          all.onsuccess = () => { resolve(all.result || []); db.close(); };
+          all.onerror = () => { resolve([]); db.close(); };
+        } catch (e) { db.close(); resolve([]); }
+      };
+    } catch (e) { resolve([]); }
+  });
+}
+
+// Which recipe-book ingredients plausibly help each tracked nutrient —
+// keyword heuristics, marked as approximate in the UI.
+const DEFICIT_KEYWORDS = {
+  protein: ["chicken", "beef", "pork", "turkey", "fish", "salmon", "tuna", "shrimp", "egg", "tofu", "tempeh", "bean", "lentil", "chickpea", "yogurt", "cheese"],
+  fiber: ["bean", "lentil", "chickpea", "whole wheat", "whole-wheat", "oat", "quinoa", "brown rice", "broccoli", "berr", "pea", "cabbage", "barley"],
+  calcium: ["milk", "cheese", "yogurt", "tofu", "sardine", "kale", "collard", "fortified", "almond"],
+  iron: ["beef", "lentil", "spinach", "bean", "tofu", "chickpea", "sardine", "clam", "pork", "turkey"],
+  potassium: ["potato", "sweet potato", "banana", "bean", "avocado", "spinach", "tomato", "salmon", "squash", "beet"],
+  vitC: ["pepper", "orange", "lemon", "lime", "citrus", "broccoli", "strawberr", "tomato", "kiwi", "cabbage", "cauliflower"],
+  vitD: ["salmon", "sardine", "mackerel", "trout", "tuna", "egg", "fortified", "mushroom"],
+};
+
+function citrusRecipeHelps(recipe, deficits) {
+  const text = (((recipe.ingredients || []).join(" ")) + " " + (recipe.title || "")).toLowerCase();
+  return deficits.filter(k => (DEFICIT_KEYWORDS[k] || []).some(w => text.includes(w)));
+}
+
 // Approximate gram equivalents for household measures. Weight units are
 // exact; volume units assume a typical density and are marked approximate.
 const UNITS = {
@@ -507,6 +549,7 @@ const BKEY = "nutrition-barcodes-v1";
 const CKEY = "nutrition-custom-nutrients-v1";
 const VKEY = "nutrition-ui-v1";
 const XKEY = "nutrition-custom-foods-v1";
+const RFKEY = "nutrition-recent-foods-v1";
 
 // Namespace stored data per person so several people can log on one device.
 // "Me" is the default, unnamed profile. Keys must not contain whitespace.
@@ -833,7 +876,7 @@ function LabelInfo({ food, onUpdate }) {
   const [editing, setEditing] = useState(false);
   const hasServing = food.per100g && food.servingG > 0;
   const factor = hasServing ? food.servingG / 100 : 1;
-  const basis = food.per100g ? (hasServing ? `per serving (${Math.round(food.servingG)} g${food.servingText ? ` — ${food.servingText}` : ""})` : "per 100 g") : "per serving";
+  const basis = food.per100g ? (hasServing ? `per serving (${Math.round(food.servingG)} g${food.servingText ? ` — ${food.servingText}` : ""})` : "per 100 g") : `per serving${food.serving ? ` (${food.serving}${food.grams ? `, ${food.grams} g` : ""})` : ""}`;
   const fields = [
     ["kcal", "Energy", "kcal", 0], ["protein", "Protein", "g", 1], ["carb", "Carbohydrate", "g", 1],
     ["fat", "Fat", "g", 1], ["fiber", "Fiber", "g", 1], ["sodium", "Sodium", "mg", 0],
@@ -1626,7 +1669,7 @@ function HistoryTab({ history, onDeleteDay }) {
 /*  Tab: Past items — full browser of scans, custom items & recipes   */
 /* ------------------------------------------------------------------ */
 
-function PastItemsTab({ barcodes, customFoods, recipes, onSelect, onDeleteScan, onDeleteCustom, onDeleteRecipe }) {
+function PastItemsTab({ barcodes, customFoods, recentFoods, recipes, onSelect, onDeleteScan, onDeleteCustom, onDeleteRecent, onDeleteRecipe }) {
   const [filter, setFilter] = useState("");
   const [openKey, setOpenKey] = useState(null);
   const q = filter.trim().toLowerCase();
@@ -1634,6 +1677,7 @@ function PastItemsTab({ barcodes, customFoods, recipes, onSelect, onDeleteScan, 
   const groups = [
     { label: "Scanned products", rows: Object.values(barcodes).filter(e => fits(e.food.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(e => ({ key: e.code, food: e.food, meta: e.code, del: () => onDeleteScan(e.code) })) },
     { label: "Custom items", rows: Object.values(customFoods).filter(e => fits(e.food.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(e => ({ key: e.food.name, food: e.food, meta: `${Math.round(e.food.kcal)} kcal/serving`, del: () => onDeleteCustom(e.food.name) })) },
+    { label: "Searched & quick-list foods", rows: Object.values(recentFoods).filter(e => fits(e.food.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(e => ({ key: e.food.name, food: e.food, meta: e.food.serving || "", del: () => onDeleteRecent(e.food.name) })) },
     { label: "Recipes", rows: Object.values(recipes).filter(r => fits(r.name)).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(r => ({ key: r.name, food: r.food, meta: `${Math.round(r.food.kcal)} kcal/serving`, del: () => onDeleteRecipe(r.name), link: r.link })) },
   ];
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
@@ -1698,12 +1742,12 @@ export default function NutritionAssessment() {
   const [amountUnit, setAmountUnit] = useState("g");
   const [selected, setSelected] = useState(null);
   const [log, setLog] = useState([]);
-  const [source, setSource] = useState("usda");
   const [profileOpen, setProfileOpen] = useState(true);
   const [usdaResults, setUsdaResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [showCustom, setShowCustom] = useState(false);
+  const [openLogId, setOpenLogId] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
   const [bonusMsg, setBonusMsg] = useState("");
@@ -1754,6 +1798,8 @@ export default function NutritionAssessment() {
   const [barcodes, setBarcodes] = useState({});
   const [customNutrients, setCustomNutrients] = useState({});
   const [customFoods, setCustomFoods] = useState({});
+  const [recentFoods, setRecentFoods] = useState({});
+  const [citrusRecipes, setCitrusRecipes] = useState([]);
   const [newNutrient, setNewNutrient] = useState({ name: "", unit: "g", target: "" });
   const [saveMsg, setSaveMsg] = useState("");
   const [users, setUsers] = useState(["Me"]);
@@ -1763,6 +1809,9 @@ export default function NutritionAssessment() {
   const hydrated = useRef(false);
 
   const todayKey = () => new Date().toISOString().slice(0, 10);
+
+  // Read the Citrus&Spice recipe book (same-origin IndexedDB) once.
+  useEffect(() => { readCitrusRecipes().then(setCitrusRecipes); }, []);
 
   // Load the person list once.
   useEffect(() => {
@@ -1779,7 +1828,7 @@ export default function NutritionAssessment() {
   useEffect(() => {
     hydrated.current = false;
     (async () => {
-      const [h, r, p, b, c, v, x] = await Promise.all([
+      const [h, r, p, b, c, v, x, rf] = await Promise.all([
         loadStore(userKey(HKEY, currentUser)),
         loadStore(userKey(RKEY, currentUser)),
         loadStore(userKey(PKEY, currentUser)),
@@ -1787,8 +1836,10 @@ export default function NutritionAssessment() {
         loadStore(userKey(CKEY, currentUser)),
         loadStore(userKey(VKEY, currentUser)),
         loadStore(userKey(XKEY, currentUser)),
+        loadStore(userKey(RFKEY, currentUser)),
       ]);
       setCustomFoods(x || {});
+      setRecentFoods(rf || {});
       setProfileOpen(!(v && v.profileOpen === false));
       setMacroStyle((v && v.macroStyle) || "standard");
       setCustomBands((v && v.customBands) || { carb: [45, 65], protein: [10, 35], fat: [20, 35] });
@@ -1976,6 +2027,15 @@ export default function NutritionAssessment() {
       multiplier = Number(qty) || 1;
     }
     setLog(l => [...l, { food: enrichFood(selected), qty: multiplier, label, id: Date.now() }]);
+    if (!selected.barcode && !selected.isRecipe) {
+      const next = { ...recentFoods, [selected.name]: { food: selected, lastUsed: Date.now() } };
+      const keys = Object.keys(next);
+      if (keys.length > 60) {
+        for (const k of keys.sort((a, b) => (next[a].lastUsed || 0) - (next[b].lastUsed || 0)).slice(0, keys.length - 60)) delete next[k];
+      }
+      setRecentFoods(next);
+      saveStore(userKey(RFKEY, currentUser), next);
+    }
     const bonuses = detectBonuses(selected.name);
     if (bonuses.length > 0) {
       const b = bonuses[0];
@@ -2068,6 +2128,13 @@ export default function NutritionAssessment() {
       setBarcodes(nb);
       await saveStore(userKey(BKEY, currentUser), nb);
     }
+  };
+
+  const deleteRecentFood = async (name) => {
+    const next = { ...recentFoods };
+    delete next[name];
+    setRecentFoods(next);
+    await saveStore(userKey(RFKEY, currentUser), next);
   };
 
   const deleteCustomFood = async (name) => {
@@ -2188,9 +2255,9 @@ export default function NutritionAssessment() {
         {tab === "reference" && <ReferenceTab targets={targets} />}
         {tab === "history" && <HistoryTab history={history} onDeleteDay={deleteHistoryDay} />}
         {tab === "past" && (
-          <PastItemsTab barcodes={barcodes} customFoods={customFoods} recipes={recipes}
+          <PastItemsTab barcodes={barcodes} customFoods={customFoods} recentFoods={recentFoods} recipes={recipes}
             onSelect={(f) => { chooseFood(f); setTab("report"); }}
-            onDeleteScan={deleteBarcode} onDeleteCustom={deleteCustomFood} onDeleteRecipe={deleteSavedRecipe} />
+            onDeleteScan={deleteBarcode} onDeleteCustom={deleteCustomFood} onDeleteRecent={deleteRecentFood} onDeleteRecipe={deleteSavedRecipe} />
         )}
 
         {tab === "report" && (
@@ -2299,94 +2366,7 @@ export default function NutritionAssessment() {
 
             {/* ---------- 02 Intake log ---------- */}
             <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
-              <SectionHead num="02" title="Intake log" sub="Search the USDA FoodData Central database, use the built-in quick list, or enter an item from a nutrition label." />
-
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
-                <div style={{ width: 210 }}>
-                  <Field label="Data source">
-                    <select className="na-select" value={source}
-                      onChange={e => { setSource(e.target.value); setSelected(null); setUsdaResults([]); setSearchError(""); }}>
-                      <option value="usda">USDA FoodData Central</option>
-                      <option value="local">Built-in quick list</option>
-                      <option value="recipes">My saved recipes</option>
-                      <option value="scans">Scanned items</option>
-                    </select>
-                  </Field>
-                </div>
-              </div>
-
-              {source === "scans" && (
-                Object.keys(barcodes).length === 0 ? (
-                  <p style={{ margin: "4px 0 12px", fontSize: 13, color: C.faint }}>
-                    No scanned items yet. Products you scan are remembered here so
-                    repeat purchases are one tap — no camera or lookup needed.
-                  </p>
-                ) : (
-                  <ul style={{ listStyle: "none", margin: "4px 0 14px", padding: 0, border: `1px solid ${C.rule}`, borderRadius: 10, maxHeight: 280, overflowY: "auto" }}>
-                    {Object.values(barcodes).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map((entry, i) => (
-                      <li key={entry.code} style={{ display: "flex", alignItems: "center", gap: 6, borderTop: i ? `1px solid ${C.rule}` : "none" }}>
-                        <button onClick={() => chooseFood(entry.food)}
-                          style={{ flex: 1, display: "flex", justifyContent: "space-between", gap: 8, padding: "10px 12px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
-                          <span>{entry.food.name}</span>
-                          <span className="na-mono" style={{ color: C.faint, fontSize: 11.5, whiteSpace: "nowrap" }}>
-                            {(() => { const n = analyzeIngredients(entry.food.ingredients).filter(f => f.level !== "note").length;
-                              return n > 0 ? <span style={{ color: C.low, fontWeight: 600 }}>⚠ {n} flagged · </span> : null; })()}
-                            {Math.round(entry.food.kcal)} kcal / 100 g · {entry.code}
-                          </span>
-                        </button>
-                        <button onClick={() => deleteBarcode(entry.code)} aria-label={`Delete ${entry.food.name} from scanned items`}
-                          style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 12.5, padding: "10px 12px" }}>
-                          Delete
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )
-              )}
-
-              {source === "recipes" && (
-                Object.keys(recipes).length === 0 ? (
-                  <p style={{ margin: "4px 0 12px", fontSize: 13, color: C.faint }}>
-                    No saved recipes yet. Open a recipe on the Citrus&Spice tabs and tap
-                    "Log to Nutrition" to bring it over with its macros.
-                  </p>
-                ) : (
-                  <div style={{ display: "grid", gap: 10, margin: "4px 0 14px" }}>
-                    {Object.values(recipes).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map(r => (
-                      <div key={r.name} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 10, padding: "10px 14px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
-                          <span className="na-serif" style={{ fontSize: 15.5, fontWeight: 700 }}>
-                            {r.name}
-                            {r.link && (
-                              <a href={r.link} target="_top" rel="noopener"
-                                style={{ marginLeft: 10, fontSize: 12, fontFamily: "'Inter', sans-serif", fontWeight: 500, color: C.accent, textDecoration: "none", borderBottom: `1px solid ${C.accent}` }}>
-                                View recipe ↗
-                              </a>
-                            )}
-                          </span>
-                          <span className="na-mono" style={{ fontSize: 12, color: C.faint }}>
-                            {Math.round(r.food.kcal)} kcal · {r.food.protein.toFixed(0)} g protein / serving
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
-                          <input className="na-input" type="number" min="0.5" step="0.5" defaultValue={1} style={{ width: 74 }}
-                            id={`rq-${r.name.replace(/\W/g, "_")}`} aria-label={`Servings of ${r.name}`} />
-                          <button className="na-btn" style={{ padding: "7px 14px" }}
-                            onClick={() => {
-                              const el = document.getElementById(`rq-${r.name.replace(/\W/g, "_")}`);
-                              logRecipeServings(r.food, Number(el && el.value) || 1);
-                            }}>
-                            Log serving(s)
-                          </button>
-                          <button className="na-btn na-btn-quiet" style={{ padding: "7px 14px", color: C.high }} onClick={() => deleteSavedRecipe(r.name)}>
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )
-              )}
+              <SectionHead num="02" title="Intake log" sub="Type a food — built-in matches appear instantly, Search USDA covers everything else. Or scan a barcode, enter a label, or reuse past items." />
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
                 <div style={{ flex: "1 1 220px", position: "relative" }}>
@@ -2395,10 +2375,10 @@ export default function NutritionAssessment() {
                       className="na-input" value={selected ? selected.name : query}
                       placeholder="e.g. oatmeal, salmon, spinach…"
                       onChange={(e) => { setSelected(null); setQuery(e.target.value); }}
-                      onKeyDown={(e) => { if (e.key === "Enter" && source === "usda") runUsdaSearch(); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") runUsdaSearch(); }}
                     />
                   </Field>
-                  {(source === "local" || source === "usda") && matches.length > 0 && !selected && usdaResults.length === 0 && (
+                  {matches.length > 0 && !selected && usdaResults.length === 0 && (
                     <ul style={{ position: "absolute", zIndex: 5, left: 0, right: 0, top: "100%", margin: 0, padding: 0, listStyle: "none", background: "#fff", border: `1px solid ${C.rule}`, borderTop: "none", boxShadow: "0 6px 16px rgba(24,36,48,0.12)" }}>
                       {matches.map(f => (
                         <li key={f.name}>
@@ -2406,7 +2386,7 @@ export default function NutritionAssessment() {
                             style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 10px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
                             <span>{f.name}</span>
                             <span className="na-mono" style={{ color: C.faint, fontSize: 12 }}>
-                              {f.serving} · {f.kcal} kcal{source === "usda" ? " · built-in" : ""}
+                              {f.serving} · {f.kcal} kcal · built-in
                             </span>
                           </button>
                         </li>
@@ -2414,12 +2394,10 @@ export default function NutritionAssessment() {
                     </ul>
                   )}
                 </div>
-                {source === "usda" && (
-                  <button className="na-btn na-btn-quiet" onClick={runUsdaSearch} disabled={searching || !query.trim()}
-                    style={{ opacity: searching || !query.trim() ? 0.5 : 1 }}>
-                    {searching ? "Searching…" : "Search USDA"}
-                  </button>
-                )}
+                <button className="na-btn na-btn-quiet" onClick={runUsdaSearch} disabled={searching || !query.trim()}
+                  style={{ opacity: searching || !query.trim() ? 0.5 : 1 }}>
+                  {searching ? "Searching…" : "Search USDA"}
+                </button>
                 <div style={{ width: 190 }}>
                   {selected && selected.per100g ? (
                     <Field label="Amount" note={amountUnit !== "serving" && UNITS[amountUnit] && UNITS[amountUnit].approx ? "Volume units are approximate — density varies by food." : null}>
@@ -2461,11 +2439,12 @@ export default function NutritionAssessment() {
                       let food = null;
                       if (kind === "s" && barcodes[key]) food = barcodes[key].food;
                       if (kind === "c" && customFoods[key]) food = customFoods[key].food;
+                      if (kind === "f" && recentFoods[key]) food = recentFoods[key].food;
                       if (kind === "r" && recipes[key]) food = recipes[key].food;
                       if (food) { chooseFood(food); setScanStatus(""); }
                     }}>
                     <option value="">Past items…</option>
-                    <option value="all">View all past items ({Object.keys(barcodes).length + Object.keys(customFoods).length + Object.keys(recipes).length})…</option>
+                    <option value="all">View all past items ({Object.keys(barcodes).length + Object.keys(customFoods).length + Object.keys(recentFoods).length + Object.keys(recipes).length})…</option>
                     {Object.values(barcodes).length > 0 && (
                       <optgroup label="Scanned products">
                         {Object.values(barcodes).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 12).map(e => (
@@ -2477,6 +2456,13 @@ export default function NutritionAssessment() {
                       <optgroup label="Custom items">
                         {Object.values(customFoods).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 12).map(e => (
                           <option key={"c:" + e.food.name} value={"c:" + e.food.name}>{e.food.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {Object.values(recentFoods).length > 0 && (
+                      <optgroup label="Recent foods">
+                        {Object.values(recentFoods).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).slice(0, 12).map(e => (
+                          <option key={"f:" + e.food.name} value={"f:" + e.food.name}>{e.food.name}</option>
                         ))}
                       </optgroup>
                     )}
@@ -2509,7 +2495,7 @@ export default function NutritionAssessment() {
 
               {searchError && <p role="alert" style={{ marginTop: 12, marginBottom: 0, fontSize: 13, color: C.high }}>{searchError}</p>}
 
-              {source === "usda" && usdaResults.length > 0 && !selected && (
+              {usdaResults.length > 0 && !selected && (
                 <ul style={{ listStyle: "none", margin: "12px 0 0", padding: 0, border: `1px solid ${C.rule}`, borderRadius: 3, maxHeight: 260, overflowY: "auto" }}>
                   {usdaResults.map((f, i) => (
                     <li key={i} style={{ borderTop: i ? `1px solid ${C.rule}` : "none" }}>
@@ -2575,7 +2561,8 @@ export default function NutritionAssessment() {
                   </thead>
                   <tbody>
                     {log.map(item => (
-                      <tr key={item.id} style={{ borderTop: `1px solid ${C.rule}` }}>
+                      <React.Fragment key={item.id}>
+                      <tr style={{ borderTop: `1px solid ${C.rule}` }}>
                         <td style={{ padding: "8px 4px" }}>{item.food.name} <span style={{ color: C.faint, fontSize: 12 }}>({item.food.serving})</span></td>
                         <td className="na-mono" style={{ padding: "8px 4px", whiteSpace: "nowrap" }}>
                           <input className="na-input" type="number" min="0" step="any"
@@ -2591,7 +2578,12 @@ export default function NutritionAssessment() {
                           )}
                         </td>
                         <td className="na-mono" style={{ padding: "8px 4px", textAlign: "right" }}>{Math.round(item.food.kcal * item.qty)}</td>
-                        <td style={{ padding: "8px 4px", textAlign: "right" }}>
+                        <td style={{ padding: "8px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
+                          <button onClick={() => setOpenLogId(openLogId === item.id ? null : item.id)}
+                            aria-expanded={openLogId === item.id}
+                            style={{ border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 13, marginRight: 8 }}>
+                            {openLogId === item.id ? "Hide" : "Details"}
+                          </button>
                           <button onClick={() => setLog(l => l.filter(x => x.id !== item.id))}
                             aria-label={`Remove ${item.food.name}`}
                             style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 13 }}>
@@ -2599,6 +2591,12 @@ export default function NutritionAssessment() {
                           </button>
                         </td>
                       </tr>
+                      {openLogId === item.id && (
+                        <tr>
+                          <td colSpan={4} style={{ padding: "0 0 10px" }}><LabelInfo food={item.food} /></td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     ))}
                     <tr style={{ borderTop: `2px solid ${C.navy}`, fontWeight: 600 }}>
                       <td style={{ padding: "8px 4px" }}>Total</td>
@@ -2794,12 +2792,51 @@ export default function NutritionAssessment() {
                     : "Meals selected to close today's remaining gaps. Tap a title to find full recipes on Google."} />
 
               {recommendations.mode === "catchup" && (
-                <p style={{ marginTop: 0, fontSize: 13.5 }}>
-                  Currently below 80% of target:{" "}
-                  {deficits.map((k, i) => (
-                    <strong key={k} style={{ color: C.low }}>{LABELS[k]}{i < deficits.length - 1 ? ", " : ""}</strong>
-                  ))}
-                </p>
+                <>
+                  <p style={{ marginTop: 0, fontSize: 13.5 }}>
+                    Currently below 80% of target:{" "}
+                    {deficits.map((k, i) => (
+                      <strong key={k} style={{ color: C.low }}>{LABELS[k]}{i < deficits.length - 1 ? ", " : ""}</strong>
+                    ))}
+                  </p>
+                  {(() => {
+                    const hits = citrusRecipes
+                      .map(r => ({ r, helps: citrusRecipeHelps(r, deficits) }))
+                      .filter(x => x.helps.length > 0)
+                      .sort((a, b) => b.helps.length - a.helps.length)
+                      .slice(0, 3);
+                    if (hits.length === 0) return null;
+                    return (
+                      <>
+                        <div className="na-eyebrow" style={{ margin: "4px 0 8px", color: C.accent }}>From your Citrus&Spice recipe book</div>
+                        <div style={{ display: "grid", gap: 12, marginBottom: 16 }}>
+                          {hits.map(({ r, helps }) => (
+                            <div key={r.id} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 3, padding: "14px 16px", background: "#fff" }}>
+                              <h3 className="na-serif" style={{ margin: "0 0 6px", fontSize: 16.5, fontWeight: 700 }}>
+                                <a href={`${RECIPE_SITE_URL}#recipe-${encodeURIComponent(r.id)}`} target="_top" rel="noopener"
+                                  style={{ color: "inherit", textDecoration: "none", borderBottom: `1.5px solid ${C.accent}` }}>
+                                  {r.title} <span aria-hidden style={{ color: C.accent, fontSize: 13 }}>↗</span>
+                                </a>
+                              </h3>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {helps.map(k => (
+                                  <span key={k} className="na-mono" style={{ fontSize: 11, padding: "3px 8px", background: "#EAF3F4", color: C.accent, borderRadius: 2, fontWeight: 500 }}>
+                                    {LABELS[k]}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <p style={{ margin: "0 0 14px", fontSize: 11, color: C.faint }}>
+                          Matched by ingredient keywords — approximate. Nutrient tags show which of
+                          today's gaps each recipe likely helps.
+                        </p>
+                        <div className="na-eyebrow" style={{ margin: "0 0 8px" }}>Ideas to add to your recipe book</div>
+                      </>
+                    );
+                  })()}
+                </>
               )}
               {recommendations.mode === "met" && (
                 <p style={{ marginTop: 0, fontSize: 13.5, color: C.ok, fontWeight: 600 }}>
