@@ -1037,6 +1037,13 @@ function analyzeIngredients(text) {
 const FLAG_COLOR = { avoid: C.high, caution: C.low, note: C.faint };
 
 
+// Display title without the "— Brand" suffix (kept in the data and shown
+// in Details, just not needed once an item is in the log).
+function shortName(name) {
+  const i = String(name || "").indexOf(" — ");
+  return i > 0 ? name.slice(0, i) : name;
+}
+
 function LabelInfo({ food, onUpdate }) {
   const [editing, setEditing] = useState(false);
   const hasServing = food.per100g && food.servingG > 0;
@@ -2987,9 +2994,8 @@ export default function NutritionAssessment() {
                   <thead>
                     <tr className="na-eyebrow" style={{ textAlign: "left" }}>
                       <th style={{ padding: "6px 4px", fontWeight: 600 }}>Item</th>
-                      <th style={{ padding: "6px 4px", fontWeight: 600 }}>Qty</th>
-                      <th className="na-mono" style={{ padding: "6px 4px", fontWeight: 600, textAlign: "right" }}>kcal</th>
-                      <th />
+                      <th style={{ padding: "6px 4px", fontWeight: 600, width: 108 }}>Qty</th>
+                      <th className="na-mono" style={{ padding: "6px 4px", fontWeight: 600, textAlign: "right", width: 54 }}>kcal</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2997,41 +3003,41 @@ export default function NutritionAssessment() {
                       <React.Fragment key={item.id}>
                       <tr style={{ borderTop: `1px solid ${C.rule}` }}>
                         <td style={{ padding: "8px 4px", wordBreak: "break-word" }}>
-                          {item.food.name}
+                          {shortName(item.food.name)}
                           {!item.food.per100g && item.food.serving && (
                             <span style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}> ({item.food.serving})</span>
                           )}
-                          <button onClick={() => setOpenLogId(openLogId === item.id ? null : item.id)}
-                            aria-expanded={openLogId === item.id}
-                            style={{ display: "block", border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 12.5, padding: "3px 0 0" }}>
-                            {openLogId === item.id ? "Hide details" : "Details"}
-                          </button>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 3 }}>
+                            <button onClick={() => setOpenLogId(openLogId === item.id ? null : item.id)}
+                              aria-expanded={openLogId === item.id}
+                              style={{ border: "none", background: "none", color: C.accent, cursor: "pointer", fontSize: 12.5, padding: 0 }}>
+                              {openLogId === item.id ? "Hide details" : "Details"}
+                            </button>
+                            <button onClick={() => setLog(l => l.filter(x => x.id !== item.id))}
+                              aria-label={`Remove ${shortName(item.food.name)}`}
+                              style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 12.5, padding: 0 }}>
+                              Remove
+                            </button>
+                          </div>
                         </td>
-                        <td className="na-mono" style={{ padding: "8px 4px", whiteSpace: "nowrap" }}>
+                        <td className="na-mono" style={{ padding: "8px 4px", verticalAlign: "top" }}>
                           <input className="na-input" type="number" min="0" step="any"
                             value={item.food.per100g ? Math.round(item.qty * 100) : item.qty}
                             onChange={e => updateItemQty(item.id, e.target.value)}
-                            aria-label={`Amount of ${item.food.name}`}
-                            style={{ width: 66, padding: "4px 6px", fontSize: 12.5, textAlign: "right" }} />
-                          <span style={{ marginLeft: 6, fontSize: 11.5, color: C.faint }}>
-                            {item.food.per100g ? "g" : item.food.isRecipe ? "serv." : "× serving"}
+                            aria-label={`Amount of ${shortName(item.food.name)}`}
+                            style={{ width: 58, padding: "4px 6px", fontSize: 12.5, textAlign: "right" }} />
+                          <span style={{ marginLeft: 5, fontSize: 11, color: C.faint }}>
+                            {item.food.per100g ? "g" : item.food.isRecipe ? "serv." : "× serv."}
                           </span>
                           {item.label && !/^\d+ g$/.test(item.label) && (
-                            <span style={{ display: "block", fontSize: 10.5, color: C.faint, marginTop: 2 }}>logged as {item.label}</span>
+                            <span style={{ display: "block", fontSize: 10.5, color: C.faint, marginTop: 2, whiteSpace: "normal" }}>{item.label}</span>
                           )}
                         </td>
-                        <td className="na-mono" style={{ padding: "8px 4px", textAlign: "right" }}>{Math.round(item.food.kcal * item.qty)}</td>
-                        <td style={{ padding: "8px 0 8px 4px", textAlign: "right" }}>
-                          <button onClick={() => setLog(l => l.filter(x => x.id !== item.id))}
-                            aria-label={`Remove ${item.food.name}`}
-                            style={{ border: "none", background: "none", color: C.high, cursor: "pointer", fontSize: 13, padding: 0 }}>
-                            Remove
-                          </button>
-                        </td>
+                        <td className="na-mono" style={{ padding: "8px 4px", textAlign: "right", verticalAlign: "top" }}>{Math.round(item.food.kcal * item.qty)}</td>
                       </tr>
                       {openLogId === item.id && (
                         <tr>
-                          <td colSpan={4} style={{ padding: "0 0 10px" }}><LabelInfo food={item.food} /></td>
+                          <td colSpan={3} style={{ padding: "0 0 10px" }}><LabelInfo food={item.food} /></td>
                         </tr>
                       )}
                       </React.Fragment>
@@ -3040,7 +3046,6 @@ export default function NutritionAssessment() {
                       <td style={{ padding: "8px 4px" }}>Total</td>
                       <td />
                       <td className="na-mono" style={{ padding: "8px 4px", textAlign: "right" }}>{Math.round(totals.kcal)}</td>
-                      <td />
                     </tr>
                   </tbody>
                 </table>
