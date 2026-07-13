@@ -234,17 +234,60 @@ const DEFICIT_KEYWORDS = {
 // Google-search recipe ideas per nutrient — a wider pool than the built-in
 // cards. Pages draw from here without repeating phrases the user has skipped.
 const GOOGLE_IDEAS = {
-  protein: ["high protein chicken meal prep", "baked salmon recipe easy", "slow cooker pulled pork", "tofu stir fry high protein", "greek yogurt protein bowl", "turkey chili recipe"],
-  fiber: ["high fiber lentil soup", "overnight oats with chia", "black bean tacos recipe", "roasted vegetable grain bowl", "barley mushroom soup", "chickpea salad sandwich"],
-  calcium: ["yogurt smoothie recipes", "baked tofu with sesame", "sardine toast recipe", "kale caesar salad recipe", "cheesy broccoli bake", "chia pudding with fortified milk"],
-  iron: ["beef and broccoli stir fry", "lentil curry dal recipe", "spinach and chickpea stew", "steak fajitas recipe", "clam pasta recipe", "tofu spinach scramble"],
-  potassium: ["loaded baked potato healthy", "white bean soup recipe", "banana oat pancakes", "avocado toast variations", "butternut squash soup", "salmon sweet potato bowl"],
-  vitC: ["stuffed bell peppers recipe", "citrus salad with fennel", "strawberry spinach salad", "garlic broccoli stir fry", "tomato gazpacho recipe", "kiwi smoothie recipes"],
-  vitD: ["sheet pan salmon dinner", "tuna poke bowl recipe", "mushroom omelette recipe", "sardine pasta puttanesca", "baked trout with lemon", "egg breakfast burrito"],
+  protein: [
+    "high protein chicken meal prep", "baked salmon recipe easy", "slow cooker pulled pork",
+    "tofu stir fry high protein", "greek yogurt protein bowl", "turkey chili recipe",
+    "sheet pan chicken and vegetables", "shrimp scampi recipe", "cottage cheese breakfast ideas",
+    "egg white frittata recipe", "lean beef stir fry", "protein pasta bake",
+    "grilled chicken marinade recipes", "salmon rice bowl", "high protein vegetarian dinner",
+  ],
+  fiber: [
+    "high fiber lentil soup", "overnight oats with chia", "black bean tacos recipe",
+    "roasted vegetable grain bowl", "barley mushroom soup", "chickpea salad sandwich",
+    "split pea soup recipe", "three bean chili", "whole wheat pasta primavera",
+    "quinoa tabbouleh recipe", "roasted brussels sprouts recipe", "bran muffin recipe healthy",
+    "farro salad recipe", "edamame snack ideas", "artichoke dip healthy",
+  ],
+  calcium: [
+    "yogurt smoothie recipes", "baked tofu with sesame", "sardine toast recipe",
+    "kale caesar salad recipe", "cheesy broccoli bake", "chia pudding recipe",
+    "spinach ricotta stuffed shells", "bok choy stir fry recipe", "cheese and white bean gratin",
+    "collard greens recipe", "almond milk oatmeal", "salmon patties with bones",
+    "paneer curry recipe", "greek yogurt tzatziki", "fortified cereal parfait",
+  ],
+  iron: [
+    "beef and broccoli stir fry", "lentil curry dal recipe", "spinach and chickpea stew",
+    "steak fajitas recipe", "clam pasta recipe", "tofu spinach scramble",
+    "beef and barley soup", "liver and onions recipe", "mussels in white wine",
+    "black bean burger recipe", "pumpkin seed pesto", "moroccan lamb tagine",
+    "iron rich smoothie spinach", "beef stew with vegetables", "oyster stew recipe",
+  ],
+  potassium: [
+    "loaded baked potato healthy", "white bean soup recipe", "banana oat pancakes",
+    "avocado toast variations", "butternut squash soup", "salmon sweet potato bowl",
+    "roasted root vegetables", "coconut water smoothie", "spinach and potato curry",
+    "tomato basil soup recipe", "beet salad recipe", "swiss chard sauté",
+    "lima bean succotash", "baked cod with tomatoes", "prune energy bites",
+  ],
+  vitC: [
+    "stuffed bell peppers recipe", "citrus salad with fennel", "strawberry spinach salad",
+    "garlic broccoli stir fry", "tomato gazpacho recipe", "kiwi smoothie recipes",
+    "roasted cauliflower recipe", "mango salsa recipe", "brussels sprouts slaw",
+    "papaya breakfast bowl", "cabbage stir fry recipe", "pineapple chicken skewers",
+    "guava smoothie recipe", "snap pea salad", "orange fennel salad",
+  ],
+  vitD: [
+    "sheet pan salmon dinner", "tuna poke bowl recipe", "mushroom omelette recipe",
+    "sardine pasta puttanesca", "baked trout with lemon", "egg breakfast burrito",
+    "herring salad recipe", "portobello mushroom burger", "salmon chowder recipe",
+    "shakshuka recipe", "fortified milk latte recipe", "mackerel rice bowl",
+    "quiche lorraine recipe", "cod fish tacos", "uv mushroom soup recipe",
+  ],
 };
 
 // Pick up to 4 unused search ideas, round-robin across nutrients for variety.
 function genSearchPage(keys, used) {
+  // up to 6 unused ideas per page, round-robin across the nutrients in play
   const byK = {};
   for (const k of keys) {
     const arr = (GOOGLE_IDEAS[k] || []).filter(q => !used.has(q));
@@ -253,7 +296,7 @@ function genSearchPage(keys, used) {
   const ks = Object.keys(byK);
   const picks = [];
   let i = 0;
-  while (picks.length < 4 && ks.length > 0) {
+  while (picks.length < 6 && ks.length > 0) {
     const k = ks[i % ks.length];
     picks.push({ k, q: byK[k].shift() });
     if (byK[k].length === 0) ks.splice(i % ks.length, 1);
@@ -649,42 +692,6 @@ function detectBonuses(name) {
 /* ------------------------------------------------------------------ */
 /*  Recipe recommendations                                            */
 /* ------------------------------------------------------------------ */
-
-const RECIPES = [
-  { name: "Sheet-pan salmon with sweet potato & broccoli", meal: "Dinner",
-    desc: "Roast salmon fillets, cubed sweet potato, and broccoli at 425°F with olive oil, lemon, and pepper (~25 min).",
-    richIn: ["vitD", "potassium", "protein", "vitC", "fiber"] },
-  { name: "Lentil & spinach stew with tomatoes", meal: "Lunch or dinner",
-    desc: "Simmer lentils with canned tomatoes, onion, garlic, and cumin; stir in spinach at the end. Finish with lemon juice to aid iron absorption.",
-    richIn: ["iron", "fiber", "potassium", "vitC", "protein"] },
-  { name: "Greek yogurt bowl with berries & almonds", meal: "Breakfast or snack",
-    desc: "Plain Greek yogurt topped with strawberries, sliced almonds, and a drizzle of honey.",
-    richIn: ["calcium", "protein", "vitC"] },
-  { name: "Tofu & broccoli stir-fry over brown rice", meal: "Dinner",
-    desc: "Pan-sear calcium-set tofu, stir-fry with broccoli, bell pepper, garlic, and ginger; serve over brown rice with low-sodium soy sauce.",
-    richIn: ["calcium", "vitC", "fiber", "iron", "protein"] },
-  { name: "Citrus spinach salad with chickpeas", meal: "Lunch",
-    desc: "Baby spinach, orange segments, chickpeas, and red onion with an olive-oil vinaigrette.",
-    richIn: ["vitC", "iron", "fiber", "potassium"] },
-  { name: "Black bean & avocado burrito bowl", meal: "Lunch or dinner",
-    desc: "Black beans, brown rice, avocado, tomato salsa, and shredded lettuce; season with lime and cilantro.",
-    richIn: ["fiber", "potassium", "iron", "protein"] },
-  { name: "Fortified-milk oatmeal with banana", meal: "Breakfast",
-    desc: "Oats cooked in vitamin-D-fortified milk, topped with sliced banana and a spoon of peanut butter.",
-    richIn: ["calcium", "vitD", "potassium", "fiber"] },
-  { name: "Veggie egg scramble with whole-grain toast", meal: "Breakfast",
-    desc: "Eggs scrambled with tomato, spinach, and a little cheddar; serve with whole-wheat toast and orange slices.",
-    richIn: ["vitD", "protein", "vitC", "calcium"] },
-  { name: "Baked potato with turkey-bean chili", meal: "Dinner",
-    desc: "A baked potato (skin on) loaded with a lean turkey and kidney-bean chili; top with plain yogurt instead of sour cream.",
-    richIn: ["potassium", "fiber", "protein", "iron"] },
-];
-
-const SAMPLE_DAYS = [
-  [RECIPES[6], RECIPES[4], RECIPES[0]],
-  [RECIPES[7], RECIPES[1], RECIPES[8]],
-  [RECIPES[2], RECIPES[5], RECIPES[3]],
-];
 
 // Rotate through a ranked list so "show different ideas" cycles instead of repeats.
 function rotatePick(list, seed, n = 3) {
@@ -1318,36 +1325,6 @@ function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCusto
     </div>
   );
 }
-
-function RecipeCard({ recipe, deficits }) {
-  const helps = deficits ? recipe.richIn.filter(k => deficits.includes(k)) : recipe.richIn;
-  return (
-    <div style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 3, padding: "14px 16px", background: "#fff" }}>
-      <div className="na-eyebrow" style={{ color: C.accent, marginBottom: 4 }}>{recipe.meal}</div>
-      <h3 className="na-serif" style={{ margin: "0 0 6px", fontSize: 16.5, fontWeight: 700 }}>
-        <a href={`https://www.google.com/search?q=${encodeURIComponent(recipe.name + " recipe")}`}
-          target="_blank" rel="noopener"
-          style={{ color: "inherit", textDecoration: "none", borderBottom: `1.5px solid ${C.accent}` }}>
-          {recipe.name} <span aria-hidden style={{ color: C.accent, fontSize: 13 }}>↗</span>
-        </a>
-      </h3>
-      <p style={{ margin: "0 0 10px", fontSize: 13.5, lineHeight: 1.55, color: "#33414D" }}>{recipe.desc}</p>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {helps.map(k => (
-          <span key={k} className="na-mono" style={{ fontSize: 11, padding: "3px 8px", background: "#EAF3F4", color: C.accent, borderRadius: 2, fontWeight: 500 }}>
-            {LABELS[k]}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Barcode scanner — native BarcodeDetector where supported (Chrome, */
-/*  Android), ZXing via CDN elsewhere (iOS Safari), manual entry as   */
-/*  the universal fallback.                                           */
-/* ------------------------------------------------------------------ */
 
 function BarcodeScanner({ onDetect, onClose }) {
   const videoRef = useRef(null);
@@ -2393,16 +2370,13 @@ export default function NutritionAssessment() {
 
   const deficits = useMemo(() => TRACKED.filter(k => pctOf(k) < 80), [totals, targets]); // eslint-disable-line
 
+  // Recommendations now draw entirely from the user's own recipe book plus
+  // live search ideas — no fixed built-in recipe set.
   const recommendations = useMemo(() => {
-    if (log.length === 0) return { mode: "plan", recipes: SAMPLE_DAYS[recPage % SAMPLE_DAYS.length] };
-    if (deficits.length === 0) return { mode: "met", recipes: [] };
-    const ranked = [...RECIPES]
-      .map(r => ({ r, score: r.richIn.filter(k => deficits.includes(k)).length }))
-      .filter(x => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map(x => x.r);
-    return { mode: "catchup", recipes: rotatePick(ranked, recPage) };
-  }, [log.length, deficits, recPage]);
+    if (log.length === 0) return { mode: "plan" };
+    if (deficits.length === 0) return { mode: "met" };
+    return { mode: "catchup" };
+  }, [log.length, deficits]);
 
   // Search-idea paging: reset when the gap set changes; Next never repeats a
   // phrase the user has already been shown (i.e. skipped), until the pool runs
@@ -3249,10 +3223,10 @@ export default function NutritionAssessment() {
               </a>
               <SectionHead num="04" title="Meal recommendations"
                 sub={recommendations.mode === "plan"
-                  ? "Nothing logged yet — ideas to cover the full nutrient panel, starting with your own recipe book."
+                  ? "Nothing logged yet — recipes from your book, plus searches to explore."
                   : recommendations.mode === "met"
                     ? "All tracked nutrients are at or near target."
-                    : "Meals selected to close today's remaining gaps. Tap a title to find full recipes on Google."} />
+                    : "Recipes from your book that fit today's gaps, plus searches to explore."} />
 
               {recommendations.mode === "catchup" && (
                 <>
@@ -3293,7 +3267,6 @@ export default function NutritionAssessment() {
                         <p style={{ margin: "0 0 14px", fontSize: 11, color: C.faint }}>
                           Keyword-matched — approximate.
                         </p>
-                        <div className="na-eyebrow" style={{ margin: "0 0 8px" }}>Ideas to add to your recipe book</div>
                       </>
                     );
                   })()}
@@ -3331,7 +3304,6 @@ export default function NutritionAssessment() {
                     <p style={{ margin: "0 0 14px", fontSize: 11, color: C.faint }}>
                       Keyword-matched — approximate.
                     </p>
-                    <div className="na-eyebrow" style={{ margin: "0 0 8px" }}>Or a sample day of ideas to add to your recipe book</div>
                   </>
                 );
               })()}
@@ -3341,16 +3313,9 @@ export default function NutritionAssessment() {
                   Nice work — today's log meets every tracked target. No catch-up meals needed.
                 </p>
               )}
-              {recommendations.recipes.length > 0 && (
-                <div style={{ display: "grid", gap: 12 }}>
-                  {recommendations.recipes.map(r => (
-                    <RecipeCard key={r.name} recipe={r} deficits={recommendations.mode === "catchup" ? deficits : null} />
-                  ))}
-                </div>
-              )}
               {recommendations.mode !== "met" && (ideaPages[recPage] || []).length > 0 && (
                 <>
-                  <div className="na-eyebrow" style={{ margin: "18px 0 8px" }}>More recipe searches</div>
+                  <div className="na-eyebrow" style={{ margin: "4px 0 8px" }}>Recipe searches to explore</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {(ideaPages[recPage] || []).map(({ q, k }) => (
                       <a key={q} href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noopener"
