@@ -2760,39 +2760,46 @@ export default function NutritionAssessment() {
                   <p style={{ margin: "0 0 14px", fontSize: 12, color: C.faint, lineHeight: 1.5 }}>
                     All fields optional. Data stays on this device, separate per person.
                   </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "minmax(90px, 0.5fr) minmax(170px, 1.4fr)", gap: 14 }}>
-                <Field label="Age">
-                  <input className="na-input" type="number" min="18" max="120" value={profile.age} onChange={set("age")} placeholder="—" />
-                </Field>
-                <Field label="Sex (reference values)">
-                  <select className="na-select" value={profile.sex} onChange={set("sex")}>
-                    <option value="">Prefer not to say</option>
-                    <option value="female">Female</option>
-                    <option value="male">Male</option>
-                  </select>
-                </Field>
-                <Field label="Weight">
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <input className="na-input" type="number" min="0" value={profile.weight} onChange={set("weight")} placeholder="—" />
-                    <select className="na-select" style={{ width: 74 }} value={profile.weightUnit} onChange={set("weightUnit")}>
-                      <option value="lb">lb</option><option value="kg">kg</option>
-                    </select>
+                  {/* Row 1: narrow age + wide sex. Row 2: weight and height at equal
+                      widths. Row 3: activity full-width so the label and the longest
+                      option ("Moderately active") both fit on one line. */}
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(80px, 0.55fr) minmax(165px, 1.45fr)", gap: 14 }}>
+                    <Field label="Age">
+                      <input className="na-input" type="number" min="18" max="120" value={profile.age} onChange={set("age")} placeholder="—" />
+                    </Field>
+                    <Field label="Sex (reference values)">
+                      <select className="na-select" value={profile.sex} onChange={set("sex")}>
+                        <option value="">Prefer not to say</option>
+                        <option value="female">Female</option>
+                        <option value="male">Male</option>
+                      </select>
+                    </Field>
                   </div>
-                </Field>
-                <Field label="Height">
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <input className="na-input" type="number" min="0" value={profile.height} onChange={set("height")} placeholder="—" />
-                    <select className="na-select" style={{ width: 74 }} value={profile.heightUnit} onChange={set("heightUnit")}>
-                      <option value="in">in</option><option value="cm">cm</option>
-                    </select>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+                    <Field label="Weight">
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input className="na-input" type="number" min="0" value={profile.weight} onChange={set("weight")} placeholder="—" style={{ minWidth: 0 }} />
+                        <select className="na-select" style={{ width: 68, flexShrink: 0 }} value={profile.weightUnit} onChange={set("weightUnit")}>
+                          <option value="lb">lb</option><option value="kg">kg</option>
+                        </select>
+                      </div>
+                    </Field>
+                    <Field label="Height">
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input className="na-input" type="number" min="0" value={profile.height} onChange={set("height")} placeholder="—" style={{ minWidth: 0 }} />
+                        <select className="na-select" style={{ width: 68, flexShrink: 0 }} value={profile.heightUnit} onChange={set("heightUnit")}>
+                          <option value="in">in</option><option value="cm">cm</option>
+                        </select>
+                      </div>
+                    </Field>
                   </div>
-                </Field>
-                <Field label="Activity level">
-                  <select className="na-select" value={profile.activity} onChange={set("activity")}>
-                    {Object.entries(ACTIVITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </Field>
-              </div>
+                  <div style={{ marginTop: 14, maxWidth: 320 }}>
+                    <Field label="Activity level">
+                      <select className="na-select" value={profile.activity} onChange={set("activity")}>
+                        {Object.entries(ACTIVITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                      </select>
+                    </Field>
+                  </div>
               <div style={{ marginTop: 16 }}>
                 <span className="na-eyebrow" style={{ display: "block", marginBottom: 6 }}>Allergies & restrictions (optional)</span>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 6 }}>
