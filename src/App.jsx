@@ -1258,11 +1258,12 @@ function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCusto
   const remaining = Math.round(targets.kcal - kcal);
   const pctE = (g, kcalPerG) => kcal > 0 ? ((g * kcalPerG) / kcal) * 100 : 0;
   const bands = styleKey === "custom" ? customBands : MACRO_STYLES[styleKey] || MACRO_STYLES.standard;
-  const gramRange = (band, perG) => `${Math.round(targets.kcal * band[0] / 100 / perG)}–${Math.round(targets.kcal * band[1] / 100 / perG)} g`;
+  const gLo = (band, perG) => (targets.kcal * band[0] / 100) / perG;
+  const gHi = (band, perG) => (targets.kcal * band[1] / 100) / perG;
   const tiles = [
-    { key: "carb", label: "Carbs", grams: totals.carb, p: pctE(totals.carb, 4), band: bands.carb, targetText: gramRange(bands.carb, 4) },
-    { key: "protein", label: "Protein", grams: totals.protein, p: pctE(totals.protein, 4), band: bands.protein, targetText: `${gramRange(bands.protein, 4)} · RDA ≥ ${targets.protein} g` },
-    { key: "fat", label: "Fat", grams: totals.fat, p: pctE(totals.fat, 9), band: bands.fat, targetText: gramRange(bands.fat, 9) },
+    { key: "carb", label: "Carbs", grams: totals.carb, p: pctE(totals.carb, 4), band: bands.carb, gLo: gLo(bands.carb, 4), gHi: gHi(bands.carb, 4) },
+    { key: "protein", label: "Protein", grams: totals.protein, p: pctE(totals.protein, 4), band: bands.protein, gLo: gLo(bands.protein, 4), gHi: gHi(bands.protein, 4), rdaText: `RDA ≥ ${targets.protein} g` },
+    { key: "fat", label: "Fat", grams: totals.fat, p: pctE(totals.fat, 9), band: bands.fat, gLo: gLo(bands.fat, 9), gHi: gHi(bands.fat, 9) },
   ];
   return (
     <div style={{ background: C.paper, border: `1px solid ${C.rule}`, borderRadius: 12, padding: "16px 18px", margin: "10px 0 8px" }}>
@@ -1306,28 +1307,49 @@ function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCusto
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16, marginTop: 16 }}>
         {tiles.map(t => {
-          const inBand = t.p >= t.band[0] && t.p <= t.band[1];
-          const color = kcal === 0 ? C.faint : inBand ? C.ok : C.low;
+          // Bars read like the nutrient gauges below: fill = grams eaten, and
+          // the [ ] brackets mark the low and high ends of the target range.
+          const scaleMax = Math.max(t.gHi * 1.25, t.grams * 1.1, 1);
+          const pctOf = (g) => Math.min(100, (g / scaleMax) * 100);
+          const inRange = t.grams >= t.gLo && t.grams <= t.gHi;
+          const color = kcal === 0 ? C.faint : inRange ? C.ok : C.low;
+          const status = kcal === 0 ? "" : t.grams < t.gLo ? "Below range" : t.grams > t.gHi ? "Above range" : "In range";
           return (
             <div key={t.label}>
-              <div className="na-eyebrow">{t.label}</div>
-              <div className="na-mono" style={{ fontSize: 21, fontWeight: 500 }}>{t.grams.toFixed(0)} g</div>
-              <div style={{ position: "relative", height: 8, background: "#ece4d4", borderRadius: 4, margin: "7px 0 5px" }}>
-                <div style={{ position: "absolute", left: `${t.band[0]}%`, width: `${t.band[1] - t.band[0]}%`, top: 0, bottom: 0, background: C.rule, borderRadius: 4 }} />
-                <div style={{ position: "absolute", left: `calc(${Math.min(Math.max(t.p, 1), 99)}% - 2px)`, top: -2, bottom: -2, width: 4, background: color, borderRadius: 2 }} />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                <div className="na-eyebrow">{t.label}</div>
+                <div className="na-mono" style={{ fontSize: 11.5, color }}>{status}</div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                <div className="na-mono" style={{ fontSize: 21, fontWeight: 500 }}>{t.grams.toFixed(0)} g</div>
+                <div className="na-mono" style={{ fontSize: 12, color: C.faint }}>
+                  target {Math.round(t.gLo)}–{Math.round(t.gHi)} g
+                </div>
+              </div>
+              <div style={{ position: "relative", height: 10, background: "#ece4d4", borderRadius: 5, margin: "8px 0 6px" }}>
+                {/* intake fill */}
+                <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${pctOf(t.grams)}%`, background: color, borderRadius: 5, transition: "width .2s" }} />
+                {/* target-range brackets */}
+                <span style={{ position: "absolute", left: `${pctOf(t.gLo)}%`, top: -4, bottom: -4, width: 0, borderLeft: `2px solid ${C.ink}` }} />
+                <span style={{ position: "absolute", left: `${pctOf(t.gLo)}%`, top: -4, width: 5, height: 2, background: C.ink }} />
+                <span style={{ position: "absolute", left: `${pctOf(t.gLo)}%`, bottom: -4, width: 5, height: 2, background: C.ink }} />
+                <span style={{ position: "absolute", left: `${pctOf(t.gHi)}%`, top: -4, bottom: -4, width: 0, borderLeft: `2px solid ${C.ink}` }} />
+                <span style={{ position: "absolute", left: `calc(${pctOf(t.gHi)}% - 5px)`, top: -4, width: 5, height: 2, background: C.ink }} />
+                <span style={{ position: "absolute", left: `calc(${pctOf(t.gHi)}% - 5px)`, bottom: -4, width: 5, height: 2, background: C.ink }} />
               </div>
               <div style={{ fontSize: 11.5, color: C.faint, lineHeight: 1.5 }}>
-                <span style={{ color, fontWeight: 600 }}>{t.p.toFixed(0)}% of energy</span> · band {t.band[0]}–{t.band[1]}% · {t.targetText}
+                {t.p.toFixed(0)}% of energy · aim for {t.band[0]}–{t.band[1]}%{t.rdaText ? ` · ${t.rdaText}` : ""}
               </div>
             </div>
           );
         })}
       </div>
       <p style={{ margin: "14px 0 0", fontSize: 11, color: C.faint, lineHeight: 1.5 }}>
+        Each bar shows grams eaten; the [ ] brackets mark the target range in grams.
+        {" "}
         {styleKey === "standard"
-          ? "Shaded bands are the Acceptable Macronutrient Distribution Ranges (AMDR) from the Dietary Reference Intakes — the framework dietitians use to assess macro balance."
-          : `Shaded bands reflect the ${(MACRO_STYLES[styleKey] || MACRO_STYLES.custom).name.replace("…", "")} pattern — a popular dietary style, not an official recommendation (the USDA/DRI standard is 45–65% carbs, 10–35% protein, 20–35% fat). For therapeutic diets like keto, work with a clinician.`}
-        {" "}The marker shows where today's intake falls.
+          ? "Ranges are the Acceptable Macronutrient Distribution Ranges (AMDR) from the Dietary Reference Intakes."
+          : `Ranges reflect the ${(MACRO_STYLES[styleKey] || MACRO_STYLES.custom).name.replace("…", "")} pattern — a popular dietary style, not an official recommendation (the USDA/DRI standard is 45–65% carbs, 10–35% protein, 20–35% fat). For therapeutic diets like keto, work with a clinician.`}
       </p>
     </div>
   );
@@ -3004,9 +3026,6 @@ export default function NutritionAssessment() {
                       <tr style={{ borderTop: `1px solid ${C.rule}` }}>
                         <td style={{ padding: "8px 4px", wordBreak: "break-word" }}>
                           {shortName(item.food.name)}
-                          {!item.food.per100g && item.food.serving && (
-                            <span style={{ color: C.faint, fontSize: 12, whiteSpace: "nowrap" }}> ({item.food.serving})</span>
-                          )}
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 3 }}>
                             <button onClick={() => setOpenLogId(openLogId === item.id ? null : item.id)}
                               aria-expanded={openLogId === item.id}
@@ -3027,11 +3046,8 @@ export default function NutritionAssessment() {
                             aria-label={`Amount of ${shortName(item.food.name)}`}
                             style={{ width: 58, padding: "4px 6px", fontSize: 12.5, textAlign: "right" }} />
                           <span style={{ marginLeft: 5, fontSize: 11, color: C.faint }}>
-                            {item.food.per100g ? "g" : item.food.isRecipe ? "serv." : "× serv."}
+                            {item.food.per100g ? "g" : "serv."}
                           </span>
-                          {item.label && !/^\d+ g$/.test(item.label) && (
-                            <span style={{ display: "block", fontSize: 10.5, color: C.faint, marginTop: 2, whiteSpace: "normal" }}>{item.label}</span>
-                          )}
                         </td>
                         <td className="na-mono" style={{ padding: "8px 4px", textAlign: "right", verticalAlign: "top" }}>{Math.round(item.food.kcal * item.qty)}</td>
                       </tr>
