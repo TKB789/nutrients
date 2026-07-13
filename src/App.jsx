@@ -481,6 +481,124 @@ const NUTRIENT_LIBRARY = {
 // so per-100 g research-library values scale correctly.
 const SERVING_GRAMS = Object.fromEntries(FOODS.map(f => [f.name, f.grams]));
 
+/* ------------------------------------------------------------------ */
+/*  Fast-food quick list. Figures are from chains' published nutrition */
+/*  disclosures and are approximate: recipes, portions and regional    */
+/*  variants change, so users are shown a verify-with-the-chain note   */
+/*  and can edit any item to match what they actually received.        */
+/*  "Standard" rows are cross-chain averages for when the exact chain  */
+/*  is unknown — clearly labeled as estimates.                        */
+/*  [chain, item, serving, grams, kcal, protein, carb, fat, fiber,     */
+/*   calcium, iron, potassium, sodium, vitC, vitD]                     */
+/* ------------------------------------------------------------------ */
+
+const FAST_FOODS = [
+  // McDonald's
+  ["McDonald's", "Hamburger", "1 burger", 100, 250, 12, 31, 9, 1, 110, 2.5, 200, 510, 1, 0],
+  ["McDonald's", "Cheeseburger", "1 burger", 114, 300, 15, 32, 13, 1, 200, 2.5, 210, 720, 1, 0.1],
+  ["McDonald's", "Double Cheeseburger", "1 burger", 165, 450, 25, 34, 24, 2, 300, 3.5, 320, 1120, 1, 0.2],
+  ["McDonald's", "Big Mac", "1 burger", 219, 590, 25, 46, 34, 3, 260, 4.5, 400, 1050, 1, 0.2],
+  ["McDonald's", "Quarter Pounder with Cheese", "1 burger", 202, 520, 30, 42, 26, 2, 300, 4.5, 430, 1140, 2, 0.2],
+  ["McDonald's", "McChicken", "1 sandwich", 143, 400, 14, 39, 21, 2, 90, 2.5, 220, 560, 1, 0],
+  ["McDonald's", "Filet-O-Fish", "1 sandwich", 142, 390, 16, 39, 19, 2, 150, 2, 250, 580, 0, 0.3],
+  ["McDonald's", "10 pc Chicken McNuggets", "10 pieces", 162, 410, 23, 25, 24, 1, 20, 1.5, 380, 800, 1, 0],
+  ["McDonald's", "French Fries (medium)", "1 medium", 111, 320, 4, 43, 15, 4, 20, 1, 640, 260, 6, 0],
+  ["McDonald's", "Egg McMuffin", "1 sandwich", 135, 310, 17, 30, 13, 2, 300, 2.5, 230, 770, 0, 1.5],
+  ["McDonald's", "Sausage McMuffin with Egg", "1 sandwich", 163, 480, 20, 30, 31, 2, 300, 3, 260, 830, 0, 1.8],
+  ["McDonald's", "Hash Browns", "1 piece", 53, 140, 1, 18, 8, 2, 0, 0.3, 240, 310, 2, 0],
+  // Taco Bell
+  ["Taco Bell", "Crunchy Taco", "1 taco", 78, 170, 8, 13, 9, 3, 80, 1, 140, 300, 1, 0],
+  ["Taco Bell", "Soft Taco (beef)", "1 taco", 99, 180, 9, 18, 9, 3, 100, 1.5, 170, 500, 1, 0],
+  ["Taco Bell", "Bean Burrito", "1 burrito", 198, 350, 13, 54, 9, 9, 200, 3, 400, 1000, 2, 0],
+  ["Taco Bell", "Burrito Supreme (beef)", "1 burrito", 248, 390, 16, 51, 14, 7, 200, 3, 450, 1090, 3, 0],
+  ["Taco Bell", "Crunchwrap Supreme", "1 wrap", 254, 530, 16, 71, 21, 6, 200, 3.5, 400, 1210, 3, 0],
+  ["Taco Bell", "Quesadilla (chicken)", "1 quesadilla", 184, 510, 26, 40, 27, 3, 600, 2.5, 350, 1250, 1, 0.3],
+  ["Taco Bell", "Nachos BellGrande", "1 order", 322, 740, 16, 82, 38, 12, 200, 3, 600, 1080, 3, 0],
+  ["Taco Bell", "Cinnamon Twists", "1 order", 35, 170, 1, 27, 6, 1, 0, 0.5, 30, 210, 0, 0],
+  // Panda Express (entrée portions)
+  ["Panda Express", "Orange Chicken", "1 entrée", 156, 490, 25, 51, 23, 2, 20, 1.5, 300, 820, 2, 0],
+  ["Panda Express", "Beijing Beef", "1 entrée", 179, 480, 14, 46, 27, 2, 40, 2, 380, 660, 6, 0],
+  ["Panda Express", "Broccoli Beef", "1 entrée", 176, 150, 9, 13, 7, 2, 40, 1.5, 350, 520, 30, 0],
+  ["Panda Express", "Kung Pao Chicken", "1 entrée", 176, 290, 16, 14, 19, 2, 40, 1.5, 380, 970, 15, 0],
+  ["Panda Express", "Honey Walnut Shrimp", "1 entrée", 110, 360, 13, 27, 23, 2, 60, 1, 200, 440, 2, 0],
+  ["Panda Express", "Grilled Teriyaki Chicken", "1 entrée", 168, 300, 33, 8, 13, 0, 20, 1.5, 380, 630, 2, 0],
+  ["Panda Express", "Chow Mein", "1 side", 269, 510, 13, 80, 20, 6, 60, 4, 400, 860, 9, 0],
+  ["Panda Express", "Fried Rice", "1 side", 265, 520, 11, 85, 16, 4, 40, 3, 250, 850, 4, 0.2],
+  ["Panda Express", "Super Greens", "1 side", 156, 90, 6, 10, 3, 5, 100, 1.5, 500, 260, 90, 0],
+  // Popeyes
+  ["Popeyes", "Chicken Sandwich (classic)", "1 sandwich", 219, 700, 28, 50, 42, 2, 100, 3, 300, 1443, 1, 0],
+  ["Popeyes", "Spicy Chicken Sandwich", "1 sandwich", 219, 700, 28, 50, 42, 2, 100, 3, 300, 1470, 1, 0],
+  ["Popeyes", "Chicken Breast (bone-in, mild)", "1 piece", 200, 530, 35, 16, 35, 1, 40, 2, 350, 1220, 0, 0.2],
+  ["Popeyes", "Chicken Thigh (bone-in, mild)", "1 piece", 108, 280, 14, 7, 22, 1, 20, 1, 190, 630, 0, 0.1],
+  ["Popeyes", "Cajun Fries (regular)", "1 regular", 129, 380, 5, 47, 19, 4, 20, 1, 700, 1120, 6, 0],
+  ["Popeyes", "Red Beans & Rice (regular)", "1 regular", 152, 230, 6, 30, 10, 6, 40, 1.5, 300, 680, 1, 0],
+  ["Popeyes", "Biscuit", "1 biscuit", 60, 260, 4, 26, 15, 1, 40, 1.5, 60, 580, 0, 0],
+  // In-N-Out
+  ["In-N-Out", "Hamburger (with onion)", "1 burger", 243, 390, 16, 39, 19, 3, 40, 3, 350, 650, 6, 0],
+  ["In-N-Out", "Cheeseburger (with onion)", "1 burger", 268, 480, 22, 39, 27, 3, 200, 3, 370, 1000, 6, 0.1],
+  ["In-N-Out", "Double-Double", "1 burger", 330, 670, 37, 39, 41, 3, 350, 4, 500, 1440, 6, 0.2],
+  ["In-N-Out", "Protein Style Cheeseburger", "1 burger", 246, 330, 18, 11, 25, 3, 200, 1.5, 350, 720, 6, 0.1],
+  ["In-N-Out", "French Fries", "1 order", 125, 370, 5, 52, 15, 2, 20, 1, 800, 245, 9, 0],
+  // Chick-fil-A
+  ["Chick-fil-A", "Chicken Sandwich", "1 sandwich", 183, 440, 29, 41, 17, 2, 80, 3, 320, 1400, 2, 0],
+  ["Chick-fil-A", "Spicy Chicken Sandwich", "1 sandwich", 185, 450, 29, 42, 19, 2, 80, 3, 320, 1650, 2, 0],
+  ["Chick-fil-A", "8 pc Nuggets", "8 pieces", 113, 250, 27, 11, 11, 0, 20, 1, 300, 1210, 0, 0],
+  ["Chick-fil-A", "Waffle Fries (medium)", "1 medium", 125, 420, 5, 45, 24, 5, 20, 1, 700, 240, 6, 0],
+  ["Chick-fil-A", "Grilled Chicken Sandwich", "1 sandwich", 210, 390, 28, 44, 12, 4, 100, 3, 400, 770, 3, 0],
+  // Wendy's
+  ["Wendy's", "Dave's Single", "1 burger", 228, 590, 29, 39, 34, 2, 200, 4, 400, 1210, 2, 0.2],
+  ["Wendy's", "Jr. Cheeseburger", "1 burger", 129, 290, 15, 26, 14, 1, 150, 2.5, 220, 610, 1, 0.1],
+  ["Wendy's", "Spicy Chicken Sandwich", "1 sandwich", 225, 500, 29, 48, 21, 3, 80, 3, 350, 1120, 3, 0],
+  ["Wendy's", "Chili (small)", "1 small", 227, 240, 19, 23, 7, 6, 80, 3, 600, 880, 3, 0],
+  ["Wendy's", "Fries (medium)", "1 medium", 142, 350, 5, 47, 16, 5, 20, 1, 800, 400, 9, 0],
+  // Burger King
+  ["Burger King", "Whopper", "1 burger", 270, 660, 28, 49, 40, 2, 100, 4.5, 450, 980, 6, 0.1],
+  ["Burger King", "Cheeseburger", "1 burger", 133, 300, 15, 27, 14, 1, 150, 2.5, 220, 690, 1, 0.1],
+  ["Burger King", "Chicken Fries (9 pc)", "9 pieces", 138, 430, 20, 30, 25, 2, 20, 1.5, 300, 1090, 0, 0],
+  ["Burger King", "Fries (medium)", "1 medium", 116, 380, 4, 53, 17, 4, 20, 1, 640, 570, 6, 0],
+  // Subway (6-inch)
+  ["Subway", "6\" Turkey Breast", "6-inch", 219, 280, 18, 46, 3.5, 5, 100, 3, 350, 810, 9, 0],
+  ["Subway", "6\" Italian B.M.T.", "6-inch", 245, 410, 20, 46, 16, 5, 150, 3, 350, 1260, 9, 0],
+  ["Subway", "6\" Meatball Marinara", "6-inch", 337, 480, 21, 62, 17, 8, 200, 5, 600, 1120, 6, 0],
+  ["Subway", "6\" Oven Roasted Chicken", "6-inch", 232, 320, 24, 45, 5, 5, 100, 3, 400, 630, 9, 0],
+  // KFC
+  ["KFC", "Original Recipe Chicken Breast", "1 piece", 161, 390, 39, 11, 21, 0, 40, 1.5, 400, 1190, 0, 0.2],
+  ["KFC", "Original Recipe Drumstick", "1 piece", 59, 130, 12, 4, 8, 0, 20, 0.5, 130, 350, 0, 0.1],
+  ["KFC", "Chicken Sandwich", "1 sandwich", 218, 650, 29, 49, 35, 3, 80, 3, 350, 1300, 1, 0],
+  ["KFC", "Mashed Potatoes with Gravy", "1 side", 151, 130, 2, 20, 4.5, 1, 20, 0.5, 300, 530, 0, 0],
+  ["KFC", "Coleslaw", "1 side", 130, 170, 1, 22, 9, 3, 40, 0.3, 200, 180, 24, 0],
+  // Chipotle (common build components)
+  ["Chipotle", "Chicken Burrito Bowl (typical)", "1 bowl", 500, 625, 45, 60, 22, 10, 200, 4, 900, 1500, 12, 0],
+  ["Chipotle", "Chicken (4 oz)", "1 serving", 113, 180, 32, 0, 7, 0, 20, 1, 350, 310, 0, 0],
+  ["Chipotle", "White Rice", "1 serving", 113, 210, 4, 40, 4, 1, 20, 1.5, 40, 350, 1, 0],
+  ["Chipotle", "Black Beans", "1 serving", 130, 130, 8, 22, 1.5, 7, 80, 2, 350, 210, 1, 0],
+  ["Chipotle", "Guacamole", "1 serving", 114, 230, 2, 8, 22, 6, 20, 0.8, 500, 370, 8, 0],
+  // Starbucks (food)
+  ["Starbucks", "Bacon & Gouda Sandwich", "1 sandwich", 128, 360, 18, 31, 18, 1, 200, 2, 200, 800, 0, 0.5],
+  ["Starbucks", "Spinach Feta Wrap", "1 wrap", 128, 290, 20, 34, 8, 3, 200, 3, 350, 830, 3, 0.4],
+  ["Starbucks", "Grande Latte (2% milk)", "16 fl oz", 473, 190, 13, 19, 7, 0, 450, 0.1, 600, 170, 0, 3.5],
+  ["Starbucks", "Grande Caffè Americano", "16 fl oz", 473, 15, 1, 2, 0, 0, 20, 0.1, 240, 10, 0, 0],
+  // Averaged "standard" items — used when the chain isn't specified
+  ["Standard (avg)", "Cheeseburger (fast-food average)", "1 burger", 150, 350, 18, 33, 17, 2, 190, 3, 280, 800, 2, 0.1],
+  ["Standard (avg)", "Hamburger (fast-food average)", "1 burger", 130, 290, 15, 32, 12, 2, 90, 2.7, 250, 570, 2, 0],
+  ["Standard (avg)", "Double cheeseburger (average)", "1 burger", 220, 560, 30, 38, 33, 2, 280, 4, 400, 1200, 2, 0.2],
+  ["Standard (avg)", "Fried chicken sandwich (average)", "1 sandwich", 210, 600, 28, 47, 33, 2, 90, 3, 320, 1350, 1, 0],
+  ["Standard (avg)", "Grilled chicken sandwich (average)", "1 sandwich", 200, 380, 29, 42, 11, 3, 90, 3, 380, 900, 2, 0],
+  ["Standard (avg)", "French fries, medium (average)", "1 medium", 120, 365, 4.5, 48, 17, 4, 20, 1, 700, 350, 7, 0],
+  ["Standard (avg)", "Chicken nuggets, 10 pc (average)", "10 pieces", 150, 400, 24, 22, 24, 1, 20, 1.3, 350, 900, 0.5, 0],
+  ["Standard (avg)", "Beef taco (average)", "1 taco", 90, 175, 8.5, 15, 9, 3, 90, 1.2, 155, 400, 1, 0],
+  ["Standard (avg)", "Burrito, beef & bean (average)", "1 burrito", 230, 380, 15, 52, 12, 8, 200, 3, 430, 1050, 2, 0],
+  ["Standard (avg)", "Cheese pizza slice (average)", "1 slice", 107, 285, 12, 36, 10, 2, 220, 2.5, 184, 640, 2, 0],
+  ["Standard (avg)", "Milkshake, medium (average)", "1 medium", 350, 530, 12, 86, 15, 1, 450, 0.5, 700, 300, 2, 1],
+  ["Standard (avg)", "Cola, medium fountain (average)", "1 medium", 620, 210, 0, 58, 0, 0, 10, 0, 5, 60, 0, 0],
+].map(([chain, item, serving, grams, ...n]) => ({
+  name: `${item} — ${chain}`,
+  chain, fastFood: true, serving, grams,
+  kcal: n[0], protein: n[1], carb: n[2], fat: n[3], fiber: n[4],
+  calcium: n[5], iron: n[6], potassium: n[7], sodium: n[8], vitC: n[9], vitD: n[10],
+}));
+
+
 function libraryLookup(presetKey, foodName) {
   const list = NUTRIENT_LIBRARY[presetKey];
   if (!list) return null;
@@ -1414,6 +1532,82 @@ const ING_DB = [
   { kw: ["ground chicken"], n: [189, 23.3, 0, 10.2, 0, 9, 0.9, 246, 77, 0, 0.1], },
   { kw: ["ground lamb"], n: [283, 24.5, 0, 19.7, 0, 17, 1.8, 310, 71, 0, 0.1], },
   { kw: ["cumin", "paprika", "oregano", "basil", "thyme", "rosemary", "chili powder", "curry powder", "turmeric", "cinnamon", "coriander", "garam masala", "italian seasoning", "bay lea", "red pepper flake", "nutmeg", "allspice", "dill", "cayenne", "smoked paprika", "five spice", "za'atar", "herbes"], n: [300, 12, 55, 10, 30, 500, 20, 1200, 30, 2, 0], cupG: 96, defG: 2 },
+  { kw: ["bacon"], n: [541, 37, 1.4, 42, 0, 11, 1.4, 565, 1717, 0, 0.3], pieceG: 8 },
+  { kw: ["pancetta", "prosciutto"], n: [280, 26, 0.5, 19, 0, 12, 1, 400, 2100, 0, 0.4], defG: 20 },
+  { kw: ["chorizo", "sausage", "italian sausage", "kielbasa"], n: [301, 17, 2.5, 25, 0, 15, 1.2, 280, 900, 0, 0.5], pieceG: 75 },
+  { kw: ["ground beef", "ground chuck", "hamburger meat"], n: [254, 17.2, 0, 20, 0, 18, 1.9, 270, 66, 0, 0.1] },
+  { kw: ["beef chuck", "stew meat", "brisket", "beef roast"], n: [217, 20, 0, 15, 0, 15, 2.2, 290, 60, 0, 0.1] },
+  { kw: ["steak", "sirloin", "ribeye", "flank steak", "skirt steak"], n: [201, 22, 0, 12, 0, 14, 1.7, 320, 55, 0, 0.1] },
+  { kw: ["pork chop", "pork loin", "pork shoulder", "pork butt"], n: [211, 21, 0, 13, 0, 18, 0.8, 350, 55, 0.6, 0.6] },
+  { kw: ["pork belly"], n: [518, 9.3, 0, 53, 0, 5, 0.4, 185, 32, 0, 0.2] },
+  { kw: ["chicken breast", "chicken cutlet"], n: [165, 31, 0, 3.6, 0, 15, 1, 256, 74, 0, 0.1], pieceG: 174 },
+  { kw: ["chicken drumstick", "chicken leg"], n: [216, 27, 0, 11, 0, 12, 1.1, 240, 90, 0, 0.1], pieceG: 100 },
+  { kw: ["whole chicken", "chicken carcass"], n: [215, 25, 0, 12, 0, 13, 1.1, 230, 82, 0, 0.1], pieceG: 1400 },
+  { kw: ["turkey breast", "ground turkey"], n: [189, 24, 0, 10, 0, 21, 1.2, 245, 70, 0, 0.3] },
+  { kw: ["shrimp", "prawn"], n: [99, 24, 0.2, 0.3, 0, 70, 0.5, 259, 111, 0, 0.1], pieceG: 12 },
+  { kw: ["salmon", "salmon fillet"], n: [208, 20, 0, 13, 0, 12, 0.3, 363, 59, 0, 11], pieceG: 170 },
+  { kw: ["cod", "halibut", "tilapia", "white fish", "haddock", "snapper"], n: [96, 20, 0, 1.3, 0, 16, 0.4, 400, 60, 0, 2] },
+  { kw: ["tuna", "canned tuna"], n: [116, 26, 0, 0.8, 0, 11, 1.5, 237, 337, 0, 2], defG: 142 },
+  { kw: ["scallop", "mussel", "clam", "crab", "lobster", "calamari", "squid"], n: [92, 17, 3, 1, 0, 45, 2.5, 320, 350, 3, 0.2] },
+  { kw: ["anchov"], n: [210, 29, 0, 9.7, 0, 232, 4.6, 544, 3668, 0, 1.7], defG: 4 },
+  { kw: ["spaghetti", "penne", "linguine", "fettuccine", "macaroni", "pasta", "rigatoni", "orzo", "lasagna noodle"], n: [371, 13, 75, 1.5, 3.2, 21, 3.3, 223, 6, 0, 0], cupG: 100 },
+  { kw: ["egg noodle", "ramen noodle", "rice noodle", "udon", "soba"], n: [364, 12, 73, 3, 3, 20, 3, 180, 20, 0, 0], cupG: 100 },
+  { kw: ["white rice", "jasmine rice", "basmati", "long grain rice", "rice"], n: [365, 7.1, 80, 0.7, 1.3, 28, 0.8, 115, 5, 0, 0], cupG: 185 },
+  { kw: ["brown rice"], n: [370, 7.9, 77, 2.9, 3.5, 23, 1.5, 223, 7, 0, 0], cupG: 190 },
+  { kw: ["quinoa"], n: [368, 14, 64, 6.1, 7, 47, 4.6, 563, 5, 0, 0], cupG: 170 },
+  { kw: ["couscous", "bulgur", "farro", "barley"], n: [350, 12, 72, 1.5, 5, 25, 2.5, 250, 8, 0, 0], cupG: 175 },
+  { kw: ["potato", "russet", "yukon"], n: [77, 2, 17, 0.1, 2.2, 12, 0.8, 425, 6, 19.7, 0], pieceG: 173, cupG: 150 },
+  { kw: ["sweet potato", "yam"], n: [86, 1.6, 20, 0.1, 3, 30, 0.6, 337, 55, 2.4, 0], pieceG: 130 },
+  { kw: ["carrot"], n: [41, 0.9, 9.6, 0.2, 2.8, 33, 0.3, 320, 69, 5.9, 0], pieceG: 61, cupG: 128 },
+  { kw: ["celery"], n: [14, 0.7, 3, 0.2, 1.6, 40, 0.2, 260, 80, 3.1, 0], pieceG: 40, cupG: 101 },
+  { kw: ["bell pepper", "red pepper", "green pepper", "capsicum"], n: [31, 1, 6, 0.3, 2.1, 7, 0.4, 211, 4, 128, 0], pieceG: 119, cupG: 149 },
+  { kw: ["jalapeno", "serrano", "chili pepper", "poblano", "habanero"], n: [29, 0.9, 6.5, 0.4, 2.8, 12, 0.3, 248, 3, 118, 0], pieceG: 14 },
+  { kw: ["broccoli"], n: [34, 2.8, 6.6, 0.4, 2.6, 47, 0.7, 316, 33, 89, 0], cupG: 91 },
+  { kw: ["cauliflower"], n: [25, 1.9, 5, 0.3, 2, 22, 0.4, 299, 30, 48, 0], cupG: 107 },
+  { kw: ["spinach", "baby spinach"], n: [23, 2.9, 3.6, 0.4, 2.2, 99, 2.7, 558, 79, 28, 0], cupG: 30 },
+  { kw: ["kale", "collard", "swiss chard", "arugula"], n: [35, 2.9, 4.4, 1.5, 4.1, 254, 1.6, 348, 53, 93, 0], cupG: 67 },
+  { kw: ["lettuce", "romaine", "mixed green", "salad green"], n: [17, 1.2, 3.3, 0.3, 2.1, 33, 1, 247, 8, 4, 0], cupG: 47 },
+  { kw: ["cabbage", "napa", "bok choy"], n: [25, 1.3, 5.8, 0.1, 2.5, 40, 0.5, 170, 18, 36, 0], cupG: 89 },
+  { kw: ["zucchini", "squash", "summer squash"], n: [17, 1.2, 3.1, 0.3, 1, 16, 0.4, 261, 8, 17.9, 0], pieceG: 196, cupG: 124 },
+  { kw: ["butternut", "acorn squash", "pumpkin"], n: [45, 1, 12, 0.1, 2, 48, 0.7, 352, 4, 21, 0], cupG: 140 },
+  { kw: ["eggplant", "aubergine"], n: [25, 1, 5.9, 0.2, 3, 9, 0.2, 229, 2, 2.2, 0], pieceG: 458, cupG: 82 },
+  { kw: ["cucumber"], n: [15, 0.7, 3.6, 0.1, 0.5, 16, 0.3, 147, 2, 2.8, 0], pieceG: 301, cupG: 119 },
+  { kw: ["tomato", "cherry tomato", "roma"], n: [18, 0.9, 3.9, 0.2, 1.2, 10, 0.3, 237, 5, 13.7, 0], pieceG: 123, cupG: 149 },
+  { kw: ["corn", "sweet corn"], n: [86, 3.3, 19, 1.4, 2, 2, 0.5, 270, 15, 6.8, 0], cupG: 154, pieceG: 90 },
+  { kw: ["pea", "green pea", "snap pea", "snow pea"], n: [81, 5.4, 14, 0.4, 5.7, 25, 1.5, 244, 5, 40, 0], cupG: 145 },
+  { kw: ["green bean", "asparagus"], n: [31, 1.8, 7, 0.2, 3.4, 37, 1, 211, 6, 12.2, 0], cupG: 125 },
+  { kw: ["mushroom", "cremini", "portobello", "shiitake", "button mushroom"], n: [22, 3.1, 3.3, 0.3, 1, 3, 0.5, 318, 5, 2.1, 0.2], cupG: 70, pieceG: 18 },
+  { kw: ["avocado"], n: [160, 2, 8.5, 14.7, 6.7, 12, 0.6, 485, 7, 10, 0], pieceG: 201 },
+  { kw: ["apple"], n: [52, 0.3, 14, 0.2, 2.4, 6, 0.1, 107, 1, 4.6, 0], pieceG: 182, cupG: 125 },
+  { kw: ["banana"], n: [89, 1.1, 23, 0.3, 2.6, 5, 0.3, 358, 1, 8.7, 0], pieceG: 118, cupG: 150 },
+  { kw: ["lemon", "lime"], n: [29, 1.1, 9.3, 0.3, 2.8, 26, 0.6, 138, 2, 53, 0], pieceG: 58 },
+  { kw: ["orange", "mandarin"], n: [47, 0.9, 12, 0.1, 2.4, 40, 0.1, 181, 0, 53, 0], pieceG: 131 },
+  { kw: ["strawberr", "blueberr", "raspberr", "blackberr", "berries"], n: [50, 0.9, 12, 0.4, 2.7, 18, 0.5, 130, 1, 40, 0], cupG: 148 },
+  { kw: ["pineapple", "mango", "peach", "pear", "plum"], n: [56, 0.6, 14, 0.2, 1.7, 14, 0.2, 170, 1, 30, 0], cupG: 165, pieceG: 165 },
+  { kw: ["raisin", "dried cranberr", "dried apricot", "date", "medjool"], n: [290, 2.5, 76, 0.5, 5, 45, 1.5, 700, 10, 1, 0], cupG: 145, pieceG: 24 },
+  { kw: ["cheddar", "monterey jack", "colby", "gouda", "swiss cheese", "provolone"], n: [403, 23, 3.1, 33, 0, 710, 0.7, 98, 653, 0, 0.6], cupG: 113 },
+  { kw: ["mozzarella"], n: [300, 22, 2.2, 22, 0, 505, 0.4, 76, 627, 0, 0.4], cupG: 112 },
+  { kw: ["feta", "goat cheese", "blue cheese", "ricotta", "cotija"], n: [265, 14, 4, 21, 0, 493, 0.7, 62, 917, 0, 0.4], cupG: 150 },
+  { kw: ["milk", "whole milk", "buttermilk", "evaporated milk"], n: [61, 3.2, 4.8, 3.3, 0, 113, 0, 132, 43, 0, 1.3], cupG: 244 },
+  { kw: ["yogurt", "greek yogurt"], n: [97, 9, 3.9, 5, 0, 100, 0.1, 141, 35, 0.8, 0], cupG: 245 },
+  { kw: ["egg"], n: [143, 12.6, 0.7, 9.5, 0, 56, 1.8, 138, 142, 0, 2], pieceG: 50 },
+  { kw: ["mayonnaise", "mayo", "aioli"], n: [680, 1, 0.6, 75, 0, 8, 0.2, 20, 635, 0, 0], cupG: 220 },
+  { kw: ["ketchup", "bbq sauce", "barbecue sauce"], n: [110, 1.2, 26, 0.2, 0.5, 18, 0.4, 300, 900, 4, 0], cupG: 240 },
+  { kw: ["ranch", "salad dressing", "italian dressing", "vinaigrette"], n: [430, 1.3, 6, 45, 0, 27, 0.1, 70, 900, 0, 0], cupG: 240 },
+  { kw: ["salsa", "pico de gallo", "enchilada sauce"], n: [29, 1.5, 6, 0.2, 1.5, 27, 0.6, 275, 600, 3, 0], cupG: 240 },
+  { kw: ["peanut butter", "almond butter", "tahini"], n: [590, 22, 22, 50, 6, 45, 2, 650, 350, 0, 0], cupG: 258 },
+  { kw: ["almond", "walnut", "pecan", "cashew", "pistachio", "peanut", "hazelnut", "pine nut"], n: [600, 20, 20, 52, 8, 120, 3.5, 650, 5, 0, 0], cupG: 130 },
+  { kw: ["black bean", "kidney bean", "pinto bean", "cannellini", "white bean", "navy bean", "refried bean"], n: [130, 8.5, 23, 0.5, 8, 40, 2.2, 400, 250, 0, 0], cupG: 172 },
+  { kw: ["chickpea", "garbanzo"], n: [164, 8.9, 27, 2.6, 7.6, 49, 2.9, 291, 240, 1.3, 0], cupG: 164 },
+  { kw: ["lentil"], n: [116, 9, 20, 0.4, 7.9, 19, 3.3, 369, 2, 1.5, 0], cupG: 198 },
+  { kw: ["tofu", "tempeh"], n: [144, 15, 3.5, 8.7, 2, 350, 2.7, 237, 12, 0, 0], cupG: 252 },
+  { kw: ["olive", "caper"], n: [115, 0.8, 6, 11, 3.2, 88, 3.3, 8, 1556, 0, 0], cupG: 135 },
+  { kw: ["pickle", "relish"], n: [12, 0.3, 2.3, 0.2, 1.2, 54, 0.4, 23, 1208, 1, 0], cupG: 143 },
+  { kw: ["tortilla", "taco shell"], n: [310, 8, 51, 8, 3, 150, 3, 130, 500, 0, 0], pieceG: 45 },
+  { kw: ["bread", "baguette", "sandwich bread", "bun", "roll", "pita", "naan"], n: [265, 9, 49, 3.2, 2.7, 150, 3.6, 115, 490, 0, 0], pieceG: 32 },
+  { kw: ["puff pastry", "pie crust", "phyllo", "pizza dough"], n: [380, 6, 40, 22, 1.5, 20, 2, 60, 400, 0, 0], pieceG: 200 },
+  { kw: ["coconut", "shredded coconut"], n: [354, 3.3, 15, 33, 9, 14, 2.4, 356, 20, 3.3, 0], cupG: 80 },
+  { kw: ["chia", "flax", "hemp seed", "sunflower seed", "pumpkin seed"], n: [520, 20, 30, 35, 25, 400, 6, 700, 10, 0, 0], cupG: 140, defG: 10 },
   { kw: ["parsley", "cilantro", "mint", "fresh basil", "chives", "fresh dill"], n: [36, 3, 6.3, 0.8, 3.3, 138, 6.2, 554, 56, 133, 0], cupG: 60, defG: 5 },
 ];
 
@@ -2233,9 +2427,17 @@ export default function NutritionAssessment() {
   };
   const prevIdeas = () => setRecPage(pg => Math.max(0, pg - 1));
 
-  const matches = query.length > 0
-    ? FOODS.filter(f => f.name.toLowerCase().includes(query.toLowerCase())).slice(0, 7)
-    : [];
+  // Built-in matches: whole foods first, then fast-food items (chain-specific
+  // matches rank above the cross-chain "Standard (avg)" rows, which act as the
+  // fallback when someone just types "cheeseburger").
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const foods = FOODS.filter(f => f.name.toLowerCase().includes(q));
+    const ff = FAST_FOODS.filter(f => f.name.toLowerCase().includes(q) || f.chain.toLowerCase().includes(q));
+    ff.sort((a, b) => (a.chain === "Standard (avg)" ? 1 : 0) - (b.chain === "Standard (avg)" ? 1 : 0));
+    return [...foods, ...ff].slice(0, 10);
+  }, [query]);
 
   const set = (k) => (e) => setProfile(p => ({ ...p, [k]: e.target.value }));
 
@@ -2637,7 +2839,7 @@ export default function NutritionAssessment() {
                             style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8, padding: "9px 10px", border: "none", background: "none", cursor: "pointer", fontSize: 13.5, textAlign: "left" }}>
                             <span>{f.name}</span>
                             <span className="na-mono" style={{ color: C.faint, fontSize: 12 }}>
-                              {f.serving} · {f.kcal} kcal · built-in
+                              {f.serving} · {f.kcal} kcal · {f.fastFood ? (f.chain === "Standard (avg)" ? "avg." : f.chain) : "built-in"}
                             </span>
                           </button>
                         </li>
@@ -2739,6 +2941,13 @@ export default function NutritionAssessment() {
               {showScanner && <BarcodeScanner onDetect={handleBarcode} onClose={() => setShowScanner(false)} />}
               {scanStatus && <p className="na-mono" style={{ marginTop: 12, marginBottom: 0, fontSize: 12.5, color: C.ok }}>{scanStatus}</p>}
               {bonusMsg && <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: C.ok, fontWeight: 600 }}>{bonusMsg}</p>}
+              {selected && selected.fastFood && (
+                <p style={{ margin: "10px 0 0", fontSize: 11.5, color: C.faint, lineHeight: 1.5, padding: "9px 12px", background: C.paper, border: `1px solid ${C.rule}`, borderRadius: 8 }}>
+                  {selected.chain === "Standard (avg)"
+                    ? "Cross-chain average — an estimate for when the exact restaurant is unknown. Pick the specific chain above for closer figures."
+                    : `From ${selected.chain}'s published nutrition information — approximate. Recipes, portions, and regional menus change; check the chain's current nutrition page, and note that customizations (sauces, extra cheese, size) shift these numbers.`}
+                </p>
+              )}
               {selected && selected.per100g && <LabelInfo food={selected} onUpdate={updateSelectedLabel} />}
               {selected && selected.ingredients && <IngredientCheck text={selected.ingredients} />}
               {selected && <MealPatternTips food={selected} />}
