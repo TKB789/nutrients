@@ -1933,7 +1933,10 @@ function ReferenceTab({ targets }) {
                   {n.ext ? n.refText : targetFor(n.key) + "/day"}
                 </span>
               </span>
-              <span className="na-mono" aria-hidden style={{ color: C.accent, fontSize: 15 }}>{isOpen ? "−" : "+"}</span>
+              <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2.5"
+                strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
             {isOpen && (
               <div style={{ padding: "0 4px 16px", fontSize: 13.5, lineHeight: 1.6, display: "grid", gap: 10 }}>
@@ -2417,13 +2420,21 @@ export default function NutritionAssessment() {
     setRecPage(0);
   }, [ideaSig]); // eslint-disable-line
 
+  // True when every phrase for the nutrients in play has already been shown.
+  const ideasExhausted = useMemo(() => {
+    const used = new Set(ideaPages.flat().map(x => x.q));
+    return genSearchPage(ideaKeys, used).length === 0;
+  }, [ideaPages, ideaSig]); // eslint-disable-line
+
+  const atLastPage = recPage >= ideaPages.length - 1;
+
   const nextIdeas = () => {
     setRecPage(pg => {
       const next = pg + 1;
       if (next < ideaPages.length) return next;
       const used = new Set(ideaPages.flat().map(x => x.q));
-      let picks = genSearchPage(ideaKeys, used);
-      if (picks.length === 0) picks = genSearchPage(ideaKeys, new Set()); // pool exhausted — fresh cycle
+      const picks = genSearchPage(ideaKeys, used);
+      if (picks.length === 0) return pg; // no ideas left — stay put
       setIdeaPages(ps => [...ps, picks]);
       return next;
     });
@@ -2749,11 +2760,11 @@ export default function NutritionAssessment() {
                   <p style={{ margin: "0 0 14px", fontSize: 12, color: C.faint, lineHeight: 1.5 }}>
                     All fields optional. Data stays on this device, separate per person.
                   </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
-                <Field label="Age (years)">
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(90px, 0.5fr) minmax(170px, 1.4fr)", gap: 14 }}>
+                <Field label="Age">
                   <input className="na-input" type="number" min="18" max="120" value={profile.age} onChange={set("age")} placeholder="—" />
                 </Field>
-                <Field label="Sex (for reference values)">
+                <Field label="Sex (reference values)">
                   <select className="na-select" value={profile.sex} onChange={set("sex")}>
                     <option value="">Prefer not to say</option>
                     <option value="female">Female</option>
@@ -3354,10 +3365,14 @@ export default function NutritionAssessment() {
                     style={{ opacity: recPage === 0 ? 0.45 : 1 }}>
                     ← Previous
                   </button>
-                  <button className="na-btn na-btn-quiet" onClick={nextIdeas}>
+                  <button className="na-btn na-btn-quiet" onClick={nextIdeas}
+                    disabled={atLastPage && ideasExhausted}
+                    style={{ opacity: atLastPage && ideasExhausted ? 0.45 : 1 }}>
                     More ideas →
                   </button>
-                  <span className="na-mono" style={{ fontSize: 11.5, color: C.faint }}>page {recPage + 1}</span>
+                  <span className="na-mono" style={{ fontSize: 11.5, color: C.faint }}>
+                    page {recPage + 1}{atLastPage && ideasExhausted ? " · no more ideas" : ""}
+                  </span>
                 </div>
               )}
             </section>
