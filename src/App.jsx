@@ -1303,7 +1303,7 @@ function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCusto
   const gHi = (band, perG) => (targets.kcal * band[1] / 100) / perG;
   const tiles = [
     { key: "carb", label: "Carbs", grams: totals.carb, p: pctE(totals.carb, 4), band: bands.carb, gLo: gLo(bands.carb, 4), gHi: gHi(bands.carb, 4) },
-    { key: "protein", label: "Protein", grams: totals.protein, p: pctE(totals.protein, 4), band: bands.protein, gLo: gLo(bands.protein, 4), gHi: gHi(bands.protein, 4), rdaText: `RDA ≥ ${targets.protein} g` },
+    { key: "protein", label: "Protein", grams: totals.protein, p: pctE(totals.protein, 4), band: bands.protein, gLo: Math.max(gLo(bands.protein, 4), targets.protein), gHi: Math.max(gHi(bands.protein, 4), targets.protein), rdaFloor: targets.protein },
     { key: "fat", label: "Fat", grams: totals.fat, p: pctE(totals.fat, 9), band: bands.fat, gLo: gLo(bands.fat, 9), gHi: gHi(bands.fat, 9) },
   ];
   return (
@@ -1378,6 +1378,11 @@ function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCusto
                 <span style={{ position: "absolute", left: `calc(${pctOf(t.gHi)}% - 5px)`, bottom: -4, width: 5, height: 2, background: C.ink }} />
               </div>
               <BarTicks scaleMax={scaleMax} unit="g" />
+              {t.rdaFloor && (
+                <div className="na-mono" style={{ fontSize: 10.5, color: C.faint, marginTop: 2 }}>
+                  range starts at the RDA floor ({t.rdaFloor} g)
+                </div>
+              )}
             </div>
           );
         })}
@@ -2866,7 +2871,7 @@ export default function NutritionAssessment() {
                 </>
               ) : (
                 <p className="na-mono" style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-                  Targets in effect: {targets.kcal.toLocaleString()} kcal · protein {targets.protein} g · fiber {targets.fiber} g
+                  Energy target: {targets.kcal.toLocaleString()} kcal/day
                 </p>
               )}
             </section>
@@ -3135,7 +3140,6 @@ export default function NutritionAssessment() {
                   <MacroSummary totals={totals} targets={targets} styleKey={macroStyle} customBands={customBands}
                     onStyle={(k) => { setMacroStyle(k); persistUi({ macroStyle: k }); }}
                     onCustomBands={(b) => { setCustomBands(b); persistUi({ customBands: b }); }} />
-                  <Gauge label="Protein (vs RDA)" value={totals.protein} target={targets.protein} unit="g" dp={1} />
                   <Gauge label="Dietary fiber" value={totals.fiber} target={targets.fiber} unit="g" dp={1} />
 
                   <div className="na-eyebrow" style={{ margin: "18px 0 2px" }}>Micronutrients</div>
@@ -3410,19 +3414,30 @@ export default function NutritionAssessment() {
                 </>
               )}
               {recommendations.mode !== "met" && (
-                <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 6, marginTop: 16, alignItems: "center", flexWrap: "wrap" }}>
                   <button className="na-btn na-btn-quiet" onClick={prevIdeas} disabled={recPage === 0}
-                    style={{ opacity: recPage === 0 ? 0.45 : 1 }}>
-                    ← Previous
+                    style={{ opacity: recPage === 0 ? 0.45 : 1, padding: "7px 13px", fontSize: 13 }}>
+                    ← Prev
                   </button>
+                  {/* Jump straight to any page already generated */}
+                  {ideaPages.map((_, i) => (
+                    <button key={i} onClick={() => setRecPage(i)} aria-current={i === recPage ? "true" : undefined}
+                      className="na-mono"
+                      style={{
+                        minWidth: 30, height: 30, padding: "0 6px", borderRadius: 999, cursor: "pointer", fontSize: 12.5,
+                        border: `1px solid ${i === recPage ? C.ink : C.rule}`,
+                        background: i === recPage ? C.ink : "#fff",
+                        color: i === recPage ? "#fff" : C.ink,
+                        fontWeight: i === recPage ? 600 : 400,
+                      }}>
+                      {i + 1}
+                    </button>
+                  ))}
                   <button className="na-btn na-btn-quiet" onClick={nextIdeas}
                     disabled={atLastPage && ideasExhausted}
-                    style={{ opacity: atLastPage && ideasExhausted ? 0.45 : 1 }}>
-                    More ideas →
+                    style={{ opacity: atLastPage && ideasExhausted ? 0.45 : 1, padding: "7px 13px", fontSize: 13 }}>
+                    {atLastPage && ideasExhausted ? "No more ideas" : "More →"}
                   </button>
-                  <span className="na-mono" style={{ fontSize: 11.5, color: C.faint }}>
-                    page {recPage + 1}{atLastPage && ideasExhausted ? " · no more ideas" : ""}
-                  </span>
                 </div>
               )}
             </section>
