@@ -1261,7 +1261,6 @@ function BarTicks({ scaleMax, unit }) {
 
 function Gauge({ label, value, target, unit, isLimit, dp = 0 }) {
   const pct = target > 0 ? (value / target) * 100 : 0;
-  const width = Math.min(pct, 130);
   let status, color;
   if (isLimit) {
     if (pct <= 100) { status = "Within limit"; color = C.ok; }
@@ -1270,20 +1269,26 @@ function Gauge({ label, value, target, unit, isLimit, dp = 0 }) {
   else if (pct <= 120) { status = "Meets target"; color = C.ok; }
   else { status = "Above target"; color = C.faint; }
 
+  // The scale stretches to fit whichever is larger — the target (with headroom)
+  // or the actual intake — so a value at 200% of target reads as twice the
+  // target mark rather than pinning the bar at full width.
+  const scaleMax = Math.max(target * 1.3, value * 1.08, 1);
+  const pctOf = (v) => (v / scaleMax) * 100;
+
   return (
     <div style={{ padding: "12px 0", borderBottom: `1px solid ${C.rule}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
         <span className="na-mono" style={{ fontSize: 12.5, color: C.faint }}>
-          {value.toFixed(dp)} / {target.toLocaleString()} {unit}
+          <strong style={{ color: C.ink, fontWeight: 700 }}>{value.toFixed(dp)}</strong> / {target.toLocaleString()} {unit}
           <span style={{ color, fontWeight: 500, marginLeft: 10 }}>{status}</span>
         </span>
       </div>
       <div style={{ position: "relative", height: 10, background: "#ece4d4", borderRadius: 2 }}>
-        <div className="na-bar-fill" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(width / 130) * 100}%`, background: color, borderRadius: 2, transition: "width 0.5s ease" }} />
-        <div style={{ position: "absolute", left: `${(100 / 130) * 100}%`, top: -3, bottom: -3, width: 2, background: C.navy }} />
+        <div className="na-bar-fill" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${pctOf(value)}%`, background: color, borderRadius: 2, transition: "width 0.5s ease" }} />
+        <div style={{ position: "absolute", left: `${pctOf(target)}%`, top: -3, bottom: -3, width: 2, background: C.navy }} />
       </div>
-      <BarTicks scaleMax={target * 1.3} unit={unit} />
+      <BarTicks scaleMax={scaleMax} unit={unit} />
     </div>
   );
 }
@@ -1345,7 +1350,7 @@ function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCusto
         {tiles.map(t => {
           // Bars read like the nutrient gauges below: fill = grams eaten, and
           // the [ ] brackets mark the low and high ends of the target range.
-          const scaleMax = Math.max(t.gHi * 1.25, t.grams * 1.1, 1);
+          const scaleMax = Math.max(t.gHi * 1.25, t.grams * 1.08, 1);
           const pctOf = (g) => Math.min(100, (g / scaleMax) * 100);
           const inRange = t.grams >= t.gLo && t.grams <= t.gHi;
           const color = kcal === 0 ? C.faint : inRange ? C.ok : C.low;
@@ -1357,7 +1362,7 @@ function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCusto
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
                 <span style={{ fontSize: 14, fontWeight: 600 }}>{t.label}</span>
                 <span className="na-mono" style={{ fontSize: 12.5, color: C.faint }}>
-                  {t.grams.toFixed(0)} / {Math.round(t.gLo)}–{Math.round(t.gHi)} g
+                  <strong style={{ color: C.ink, fontWeight: 700 }}>{t.grams.toFixed(0)}</strong> / {Math.round(t.gLo)}–{Math.round(t.gHi)} g
                   <span style={{ color, fontWeight: 500, marginLeft: 10 }}>{status}</span>
                 </span>
               </div>
@@ -3319,19 +3324,22 @@ export default function NutritionAssessment() {
                         <div className="na-eyebrow" style={{ margin: "4px 0 8px", color: C.accent }}>From your Citrus&Spice recipe book</div>
                         <div style={{ display: "grid", gap: 12, marginBottom: 16 }}>
                           {hits.map(({ r, helps }) => (
-                            <div key={r.id} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 3, padding: "14px 16px", background: "#fff" }}>
-                              <h3 className="na-serif" style={{ margin: "0 0 6px", fontSize: 16.5, fontWeight: 700 }}>
+                            <div key={r.id} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 3, padding: "14px 16px", background: "#fff", height: 108, display: "flex", flexDirection: "column", justifyContent: "space-between", boxSizing: "border-box", overflow: "hidden" }}>
+                              <h3 className="na-serif" style={{ margin: 0, fontSize: 16.5, fontWeight: 700, lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                                 <a href={`${RECIPE_SITE_URL}#recipe-${encodeURIComponent(r.id)}`} target="_top" rel="noopener"
                                   style={{ color: "inherit", textDecoration: "none", borderBottom: `1.5px solid ${C.accent}` }}>
                                   {r.title} <span aria-hidden style={{ color: C.accent, fontSize: 13 }}>↗</span>
                                 </a>
                               </h3>
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {helps.map(k => (
-                                  <span key={k} className="na-mono" style={{ fontSize: 11, padding: "3px 8px", background: "#EAF3F4", color: C.accent, borderRadius: 2, fontWeight: 500 }}>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "nowrap", overflow: "hidden" }}>
+                                {helps.slice(0, 3).map(k => (
+                                  <span key={k} className="na-mono" style={{ fontSize: 11, padding: "3px 8px", background: "#EAF3F4", color: C.accent, borderRadius: 2, fontWeight: 500, whiteSpace: "nowrap" }}>
                                     {LABELS[k]}
                                   </span>
                                 ))}
+                                {helps.length > 3 && (
+                                  <span className="na-mono" style={{ fontSize: 11, padding: "3px 4px", color: C.faint, whiteSpace: "nowrap" }}>+{helps.length - 3}</span>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -3355,20 +3363,20 @@ export default function NutritionAssessment() {
                     <div className="na-eyebrow" style={{ margin: "4px 0 8px", color: C.accent }}>From your Citrus&Spice recipe book — broadest nutrient coverage</div>
                     <div style={{ display: "grid", gap: 12, marginBottom: 16 }}>
                       {hits.map(({ r, helps }) => (
-                        <div key={r.id} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 3, padding: "14px 16px", background: "#fff" }}>
-                          <h3 className="na-serif" style={{ margin: "0 0 6px", fontSize: 16.5, fontWeight: 700 }}>
+                        <div key={r.id} style={{ border: `1px solid ${C.rule}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 3, padding: "14px 16px", background: "#fff", height: 108, display: "flex", flexDirection: "column", justifyContent: "space-between", boxSizing: "border-box", overflow: "hidden" }}>
+                          <h3 className="na-serif" style={{ margin: 0, fontSize: 16.5, fontWeight: 700, lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                             <a href={`${RECIPE_SITE_URL}#recipe-${encodeURIComponent(r.id)}`} target="_top" rel="noopener"
                               style={{ color: "inherit", textDecoration: "none", borderBottom: `1.5px solid ${C.accent}` }}>
                               {r.title} <span aria-hidden style={{ color: C.accent, fontSize: 13 }}>↗</span>
                             </a>
                           </h3>
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            {helps.slice(0, 5).map(k => (
-                              <span key={k} className="na-mono" style={{ fontSize: 11, padding: "3px 8px", background: "#EAF3F4", color: C.accent, borderRadius: 2, fontWeight: 500 }}>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "nowrap", overflow: "hidden" }}>
+                            {helps.slice(0, 3).map(k => (
+                              <span key={k} className="na-mono" style={{ fontSize: 11, padding: "3px 8px", background: "#EAF3F4", color: C.accent, borderRadius: 2, fontWeight: 500, whiteSpace: "nowrap" }}>
                                 {LABELS[k]}
                               </span>
                             ))}
-                            {helps.length > 5 && <span className="na-mono" style={{ fontSize: 11, padding: "3px 4px", color: C.faint }}>+{helps.length - 5} more</span>}
+                            {helps.length > 3 && <span className="na-mono" style={{ fontSize: 11, padding: "3px 4px", color: C.faint, whiteSpace: "nowrap" }}>+{helps.length - 3}</span>}
                           </div>
                         </div>
                       ))}
@@ -3388,12 +3396,14 @@ export default function NutritionAssessment() {
               {recommendations.mode !== "met" && (ideaPages[recPage] || []).length > 0 && (
                 <>
                   <div className="na-eyebrow" style={{ margin: "4px 0 8px" }}>Recipe searches to explore</div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {/* One chip per row, single line each — so every page is the same
+                      height and the paging buttons never move. */}
+                  <div style={{ display: "grid", gap: 8 }}>
                     {(ideaPages[recPage] || []).map(({ q, k }) => (
                       <a key={q} href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noopener"
-                        style={{ display: "inline-flex", alignItems: "baseline", gap: 6, padding: "8px 13px", background: "#fff", border: `1px solid ${C.rule}`, borderRadius: 999, fontSize: 12.5, color: C.ink, textDecoration: "none" }}>
-                        {q}
-                        <span className="na-mono" style={{ fontSize: 10.5, color: C.accent }}>{LABELS[k]}</span>
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", background: "#fff", border: `1px solid ${C.rule}`, borderRadius: 999, fontSize: 12.5, color: C.ink, textDecoration: "none", height: 38, boxSizing: "border-box" }}>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q}</span>
+                        <span className="na-mono" style={{ fontSize: 10.5, color: C.accent, whiteSpace: "nowrap", flexShrink: 0 }}>{LABELS[k]}</span>
                       </a>
                     ))}
                   </div>
