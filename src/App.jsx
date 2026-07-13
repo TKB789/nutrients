@@ -1224,6 +1224,41 @@ function SectionHead({ num, title, sub }) {
   );
 }
 
+// Choose a "nice" tick step (1/2/5 x 10^n) so bars get ~4-6 labeled marks.
+function tickStep(max) {
+  const raw = max / 5;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+  const n = raw / mag;
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return step * mag;
+}
+
+// Tick marks + numeric labels beneath a bar whose full width equals scaleMax.
+function BarTicks({ scaleMax, unit }) {
+  const step = tickStep(scaleMax);
+  const ticks = [];
+  for (let v = 0; v <= scaleMax + 1e-9; v += step) ticks.push(v);
+  return (
+    <div style={{ position: "relative", height: 14, marginTop: 2 }}>
+      {ticks.map((v, i) => {
+        const left = (v / scaleMax) * 100;
+        const last = i === ticks.length - 1;
+        return (
+          <React.Fragment key={v}>
+            <span style={{ position: "absolute", left: `${left}%`, top: 0, width: 1, height: 3, background: C.rule }} />
+            <span className="na-mono" style={{
+              position: "absolute", left: `${left}%`, top: 3, fontSize: 9.5, color: C.faint,
+              transform: i === 0 ? "none" : last ? "translateX(-100%)" : "translateX(-50%)", whiteSpace: "nowrap",
+            }}>
+              {v >= 1000 ? Math.round(v).toLocaleString() : Math.round(v * 10) / 10}{last && unit ? ` ${unit}` : ""}
+            </span>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 function Gauge({ label, value, target, unit, isLimit, dp = 0 }) {
   const pct = target > 0 ? (value / target) * 100 : 0;
   const width = Math.min(pct, 130);
@@ -1248,6 +1283,7 @@ function Gauge({ label, value, target, unit, isLimit, dp = 0 }) {
         <div className="na-bar-fill" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(width / 130) * 100}%`, background: color, borderRadius: 2, transition: "width 0.5s ease" }} />
         <div style={{ position: "absolute", left: `${(100 / 130) * 100}%`, top: -3, bottom: -3, width: 2, background: C.navy }} />
       </div>
+      <BarTicks scaleMax={target * 1.3} unit={unit} />
     </div>
   );
 }
@@ -1281,7 +1317,7 @@ function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCusto
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12 }}>
         <div style={{ width: 240 }}>
-          <Field label="Dietary style (sets the macro bands)">
+          <Field label={<>Dietary style<span style={{ display: "block", fontWeight: 400 }}>(sets the macro ranges)</span></>}>
             <select className="na-select" value={styleKey} onChange={e => onStyle(e.target.value)}>
               {Object.entries(MACRO_STYLES).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
             </select>
@@ -1316,17 +1352,16 @@ function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCusto
           const status = kcal === 0 ? "" : t.grams < t.gLo ? "Below range" : t.grams > t.gHi ? "Above range" : "In range";
           return (
             <div key={t.label}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                <div className="na-eyebrow">{t.label}</div>
-                <div className="na-mono" style={{ fontSize: 11.5, color }}>{status}</div>
+              {/* Header mirrors the nutrient gauges below: label left, value /
+                  target range and status together on the right. */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>{t.label}</span>
+                <span className="na-mono" style={{ fontSize: 12.5, color: C.faint }}>
+                  {t.grams.toFixed(0)} / {Math.round(t.gLo)}–{Math.round(t.gHi)} g
+                  <span style={{ color, fontWeight: 500, marginLeft: 10 }}>{status}</span>
+                </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                <div className="na-mono" style={{ fontSize: 21, fontWeight: 500 }}>{t.grams.toFixed(0)} g</div>
-                <div className="na-mono" style={{ fontSize: 12, color: C.faint }}>
-                  target {Math.round(t.gLo)}–{Math.round(t.gHi)} g
-                </div>
-              </div>
-              <div style={{ position: "relative", height: 10, background: "#ece4d4", borderRadius: 5, margin: "8px 0 6px" }}>
+              <div style={{ position: "relative", height: 10, background: "#ece4d4", borderRadius: 5 }}>
                 {/* intake fill */}
                 <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${pctOf(t.grams)}%`, background: color, borderRadius: 5, transition: "width .2s" }} />
                 {/* target-range brackets */}
@@ -1337,20 +1372,18 @@ function MacroSummary({ totals, targets, styleKey, customBands, onStyle, onCusto
                 <span style={{ position: "absolute", left: `calc(${pctOf(t.gHi)}% - 5px)`, top: -4, width: 5, height: 2, background: C.ink }} />
                 <span style={{ position: "absolute", left: `calc(${pctOf(t.gHi)}% - 5px)`, bottom: -4, width: 5, height: 2, background: C.ink }} />
               </div>
-              <div style={{ fontSize: 11.5, color: C.faint, lineHeight: 1.5 }}>
-                {t.p.toFixed(0)}% of energy · aim for {t.band[0]}–{t.band[1]}%{t.rdaText ? ` · ${t.rdaText}` : ""}
-              </div>
+              <BarTicks scaleMax={scaleMax} unit="g" />
             </div>
           );
         })}
       </div>
-      <p style={{ margin: "14px 0 0", fontSize: 11, color: C.faint, lineHeight: 1.5 }}>
-        Each bar shows grams eaten; the [ ] brackets mark the target range in grams.
-        {" "}
-        {styleKey === "standard"
-          ? "Ranges are the Acceptable Macronutrient Distribution Ranges (AMDR) from the Dietary Reference Intakes."
-          : `Ranges reflect the ${(MACRO_STYLES[styleKey] || MACRO_STYLES.custom).name.replace("…", "")} pattern — a popular dietary style, not an official recommendation (the USDA/DRI standard is 45–65% carbs, 10–35% protein, 20–35% fat). For therapeutic diets like keto, work with a clinician.`}
-      </p>
+      {styleKey !== "standard" && (
+        <p style={{ margin: "12px 0 0", fontSize: 11, color: C.faint, lineHeight: 1.5 }}>
+          {(MACRO_STYLES[styleKey] || MACRO_STYLES.custom).name.replace("…", "")} is a popular dietary
+          pattern, not an official recommendation (USDA/DRI: 45–65% carbs, 10–35% protein,
+          20–35% fat). For therapeutic diets like keto, work with a clinician.
+        </p>
+      )}
     </div>
   );
 }
