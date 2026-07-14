@@ -768,7 +768,19 @@ const css = `
 .na-btn:hover { background: #4a4137; border-color: #4a4137; }
 .na-btn-quiet { background: transparent; color: #4a4137; border-color: ${C.rule}; }
 .na-btn-quiet:hover { background: #ece4d4; }
-.na-panel { background: ${C.panel}; border: 1px solid ${C.rule}; border-radius: 14px; box-shadow: 0 1px 2px rgba(28,24,20,.06), 0 8px 24px rgba(28,24,20,.08); }
+.na-panel { background: ${C.panel}; border: 1px solid ${C.rule}; border-radius: 14px; box-shadow: 0 1px 2px rgba(28,24,20,.06), 0 8px 24px rgba(28,24,20,.08); padding: 22px 22px 24px; }
+.na-main { max-width: 860px; margin: 0 auto; padding: 26px 20px 40px; display: grid; gap: 26px; }
+.na-chipbtn { font: inherit; font-size: 12.5px; font-weight: 500; padding: 8px 13px; cursor: pointer; border: 1px solid ${C.rule}; background: transparent; color: #4a4137; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.na-chipbtn:hover { background: #ece4d4; }
+.na-hdr { background: ${C.paper}; border-bottom: 1px solid ${C.rule}; padding: 18px 20px 0; }
+.na-banner { max-width: 860px; margin: 0 auto; padding: 8px 20px; font-size: 11.5px; line-height: 1.5; color: #4a4137; }
+@media (max-width: 600px) {
+  .na-panel { padding: 15px 14px 17px; border-radius: 12px; }
+  .na-main { padding: 14px 12px 32px; gap: 14px; }
+  .na-hdr { padding: 12px 14px 0; }
+  .na-banner { padding: 7px 14px; font-size: 11px; }
+  .na-tab { padding: 11px 10px; font-size: 13.5px; }
+}
 .na-tab { font: inherit; font-size: 14px; font-weight: 500; padding: 13px 12px; background: none; border: none; position: relative; color: ${C.faint}; cursor: pointer; white-space: nowrap; }
 .na-tab[aria-selected="true"] { color: ${C.ink}; font-weight: 600; }
 .na-tab[aria-selected="true"]::after { content: ''; position: absolute; bottom: -1px; left: 12px; right: 12px; height: 2px; background: ${C.accent}; }
@@ -1214,11 +1226,11 @@ function Field({ label, children, note }) {
 
 function SectionHead({ num, title, sub }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: 14, borderBottom: `2px solid ${C.navy}`, paddingBottom: 10, marginBottom: 18 }}>
-      {num && <span className="na-mono" style={{ fontSize: 13, color: C.accent, fontWeight: 500 }}>{num}</span>}
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, borderBottom: `2px solid ${C.navy}`, paddingBottom: 8, marginBottom: 14 }}>
+      {num && <span className="na-mono" style={{ fontSize: 12.5, color: C.accent, fontWeight: 500 }}>{num}</span>}
       <div>
-        <h2 className="na-serif" style={{ margin: 0, fontSize: 21, fontWeight: 700, color: C.navy }}>{title}</h2>
-        {sub && <p style={{ margin: "3px 0 0", fontSize: 13, color: C.faint }}>{sub}</p>}
+        <h2 className="na-serif" style={{ margin: 0, fontSize: 19, fontWeight: 700, color: C.navy }}>{title}</h2>
+        {sub && <p style={{ margin: "2px 0 0", fontSize: 12.5, color: C.faint, lineHeight: 1.4 }}>{sub}</p>}
       </div>
     </div>
   );
@@ -1823,7 +1835,7 @@ function RecipeImport({ req, onCancel, onComplete }) {
   }, [matched]);
 
   return (
-    <section className="na-panel" style={{ padding: "18px 20px 20px", borderLeft: `3px solid ${C.accent}` }}>
+    <section className="na-panel" style={{ borderLeft: `3px solid ${C.accent}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
         <h2 className="na-serif" style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
           Import: {req.title}
@@ -1959,7 +1971,7 @@ function ReferenceTab({ targets }) {
     k === "vitD" ? `${targets.vitD} mcg` : "";
 
   return (
-    <section className="na-panel" style={{ padding: "22px 22px 10px" }}>
+    <section className="na-panel" style={{ paddingBottom: 10 }}>
       <SectionHead title="Nutrient reference" sub="What each tracked nutrient does, signs of shortfall, and how to get more. Targets shown reflect your profile." />
       {[...NUTRIENT_INFO, ...PRESET_NUTRIENTS.filter(pn => PRESET_INFO[pn.key]).map(pn => ({
         key: pn.key, ext: true, name: pn.name,
@@ -2029,7 +2041,7 @@ function HistoryTab({ history, onDeleteDay }) {
   }, [history, windowDays]); // eslint-disable-line
 
   return (
-    <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
+    <section className="na-panel">
       <SectionHead title="History" sub="Saved daily reports, and which nutrients you ran low on over time." />
       <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
         {[7, 30].map(w => (
@@ -2150,7 +2162,7 @@ function PastItemsTab({ barcodes, customFoods, recentFoods, recipes, onSelect, o
   ];
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
   return (
-    <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
+    <section className="na-panel">
       <SectionHead title="Past items" sub="Everything you've scanned, entered, or imported. Tap an item to select it on the Daily Log." />
       <input className="na-input" type="search" value={filter} onChange={e => setFilter(e.target.value)}
         placeholder="Filter by name…" style={{ marginBottom: 12, maxWidth: 380 }} />
@@ -2732,7 +2744,7 @@ export default function NutritionAssessment() {
     <div className="na-root">
       <style>{css}</style>
 
-      <header style={{ background: C.paper, borderBottom: `1px solid ${C.rule}`, padding: "18px 20px 0" }}>
+      <header className="na-hdr">
         <div style={{ maxWidth: 860, margin: "0 auto" }}>
           <div>
             <h1 className="na-serif" style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.15 }}>
@@ -2751,13 +2763,13 @@ export default function NutritionAssessment() {
       </header>
 
       <div style={{ background: "#ece4d4", borderBottom: `1px solid ${C.rule}` }}>
-        <p style={{ maxWidth: 860, margin: "0 auto", padding: "8px 20px", fontSize: 11.5, lineHeight: 1.5, color: "#4a4137" }}>
+        <p className="na-banner" style={{ margin: "0 auto" }}>
           Quick reference only — not medical advice. Follow your healthcare provider's
           recommendations and verify product packaging.
         </p>
       </div>
 
-      <main style={{ maxWidth: 860, margin: "0 auto", padding: "26px 20px 40px", display: "grid", gap: 26 }}>
+      <main className="na-main">
 
         {tab === "reference" && <ReferenceTab targets={targets} />}
         {tab === "history" && <HistoryTab history={history} onDeleteDay={deleteHistoryDay} />}
@@ -2771,8 +2783,8 @@ export default function NutritionAssessment() {
           <>
             {importReq && <RecipeImport req={importReq} onCancel={() => setImportReq(null)} onComplete={completeImport} />}
             {/* ---------- 01 Profile ---------- */}
-            <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, borderBottom: `2px solid ${C.navy}`, paddingBottom: 10, marginBottom: profileOpen ? 18 : 0, flexWrap: "wrap" }}>
+            <section className="na-panel" style={profileOpen ? undefined : { padding: "10px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, borderBottom: profileOpen ? `2px solid ${C.navy}` : "none", paddingBottom: profileOpen ? 10 : 0, marginBottom: profileOpen ? 14 : 0, flexWrap: "wrap" }}>
                 <span className="na-mono" style={{ fontSize: 13, color: C.accent, fontWeight: 500 }}>01</span>
                 <h2 className="na-serif" style={{ margin: 0, fontSize: 21, fontWeight: 700, color: C.navy, flex: "0 0 auto" }}>Profile</h2>
                 <select className="na-select" value={currentUser} aria-label="Logging for"
@@ -2789,6 +2801,11 @@ export default function NutritionAssessment() {
                   </>
                 )}
                 <span style={{ flex: 1 }} />
+                {!profileOpen && (
+                  <span className="na-mono" style={{ fontSize: 12, color: C.faint, whiteSpace: "nowrap" }}>
+                    {targets.kcal.toLocaleString()} kcal/day
+                  </span>
+                )}
                 <button className="na-btn na-btn-quiet" aria-expanded={profileOpen}
                   onClick={() => setProfileOpen(o => {
                     const nv = !o;
@@ -2869,31 +2886,35 @@ export default function NutritionAssessment() {
                     Energy target basis: {targets.kcalBasis} → {targets.kcal.toLocaleString()} kcal/day
                   </p>
                 </>
-              ) : (
-                <p className="na-mono" style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-                  Energy target: {targets.kcal.toLocaleString()} kcal/day
-                </p>
-              )}
+              ) : null}
             </section>
 
             {/* ---------- 02 Intake log ---------- */}
-            <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
+            <section className="na-panel">
               <SectionHead num="02" title="Intake log" sub="Type to search, scan a barcode, or reuse past items." />
 
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-                <div style={{ flex: "1 1 220px", position: "relative" }}>
+              <div style={{ display: "grid", gap: 12 }}>
+                {/* Row 1 — food search with the USDA lookup attached to the field */}
+                <div style={{ position: "relative" }}>
                   <Field label="Food">
-                    <input
-                      className="na-input" value={selected ? selected.name : query}
-                      placeholder="e.g. oatmeal, salmon, spinach…"
-                      onChange={(e) => { setSelected(null); setQuery(e.target.value); setHideSuggest(false); }}
-                      onFocus={() => setHideSuggest(false)}
-                      onBlur={() => setTimeout(() => setHideSuggest(true), 150)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") { setHideSuggest(true); runUsdaSearch(); }
-                        if (e.key === "Escape") setHideSuggest(true);
-                      }}
-                    />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        className="na-input" value={selected ? selected.name : query}
+                        placeholder="e.g. oatmeal, salmon, spinach…"
+                        style={{ flex: 1, minWidth: 0 }}
+                        onChange={(e) => { setSelected(null); setQuery(e.target.value); setHideSuggest(false); }}
+                        onFocus={() => setHideSuggest(false)}
+                        onBlur={() => setTimeout(() => setHideSuggest(true), 150)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { setHideSuggest(true); runUsdaSearch(); }
+                          if (e.key === "Escape") setHideSuggest(true);
+                        }}
+                      />
+                      <button className="na-btn na-btn-quiet" onClick={runUsdaSearch} disabled={searching || !query.trim()}
+                        style={{ opacity: searching || !query.trim() ? 0.5 : 1, flexShrink: 0, padding: "9px 14px", fontSize: 12.5 }}>
+                        {searching ? "Searching…" : "Search USDA"}
+                      </button>
+                    </div>
                   </Field>
                   {matches.length > 0 && !selected && usdaResults.length === 0 && !hideSuggest && (
                     <ul style={{ position: "absolute", zIndex: 5, left: 0, right: 0, top: "100%", margin: 0, padding: 0, listStyle: "none", background: "#fff", border: `1px solid ${C.rule}`, borderTop: "none", boxShadow: "0 6px 16px rgba(24,36,48,0.12)" }}>
@@ -2911,11 +2932,9 @@ export default function NutritionAssessment() {
                     </ul>
                   )}
                 </div>
-                <button className="na-btn na-btn-quiet" onClick={runUsdaSearch} disabled={searching || !query.trim()}
-                  style={{ opacity: searching || !query.trim() ? 0.5 : 1 }}>
-                  {searching ? "Searching…" : "Search USDA"}
-                </button>
-                <div style={{ width: 190 }}>
+                {/* Row 2 — quantity and the primary action side by side */}
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+                <div style={{ flex: "0 1 200px", minWidth: 140 }}>
                   {selected && selected.per100g ? (
                     <Field label="Amount" note={amountUnit !== "serving" && UNITS[amountUnit] && UNITS[amountUnit].approx ? "Volume units are approximate — density varies by food." : null}>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -2932,8 +2951,17 @@ export default function NutritionAssessment() {
                     </Field>
                   )}
                 </div>
-                <button className="na-btn na-btn-quiet" onClick={() => { setShowScanner(s => !s); setScanStatus(""); }}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                {/* Primary action — beside the quantity so logging is one glance, one tap */}
+                <button className="na-btn" onClick={addFood} disabled={!selected}
+                  style={{ opacity: selected ? 1 : 0.45, flex: "1 1 170px", marginTop: 21,
+                    padding: "10px 18px", fontSize: 15, fontWeight: 600 }}>
+                  Add to log
+                </button>
+                </div>
+
+                {/* Row 3 — other ways to find a food, as quiet chips */}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                <button className="na-chipbtn" onClick={() => { setShowScanner(s => !s); setScanStatus(""); }}>
                   {!showScanner && (
                     <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
@@ -2942,12 +2970,12 @@ export default function NutritionAssessment() {
                   )}
                   {showScanner ? "Cancel scan" : "Scan barcode"}
                 </button>
-                <button className="na-btn na-btn-quiet" onClick={() => setShowCustom(s => !s)}>
+                <button className="na-chipbtn" onClick={() => setShowCustom(s => !s)}>
                   {showCustom ? "Cancel custom item" : "Custom item"}
                 </button>
-                <div style={{ width: 160 }}>
+                <div style={{ flex: "0 1 150px", minWidth: 120 }}>
                   <select className="na-select" value="" aria-label="Past items"
-                    style={{ borderRadius: 999, padding: "10px 14px", fontSize: 13, fontWeight: 500, color: "#4a4137" }}
+                    style={{ borderRadius: 999, padding: "8px 12px", fontSize: 12.5, fontWeight: 500, color: "#4a4137" }}
                     onChange={e => {
                       const v = e.target.value;
                       if (!v) return;
@@ -2993,14 +3021,7 @@ export default function NutritionAssessment() {
                   </select>
                 </div>
               </div>
-
-              {/* Primary action — sized and placed last to signal it records the entry */}
-              <button className="na-btn" onClick={addFood} disabled={!selected}
-                style={{ opacity: selected ? 1 : 0.45, display: "block", width: "100%", maxWidth: 400,
-                  marginTop: 12, padding: "14px 18px", fontSize: 15.5, fontWeight: 600 }}>
-                Add to log
-              </button>
-
+              </div>
 
               {showScanner && <BarcodeScanner onDetect={handleBarcode} onClose={() => setShowScanner(false)} />}
               {scanStatus && <p className="na-mono" style={{ marginTop: 12, marginBottom: 0, fontSize: 12.5, color: C.ok }}>{scanStatus}</p>}
@@ -3130,7 +3151,7 @@ export default function NutritionAssessment() {
             </section>
 
             {/* ---------- 03 Assessment ---------- */}
-            <section className="na-panel" style={{ padding: "22px 22px 10px" }}>
+            <section className="na-panel" style={{ paddingBottom: 10 }}>
               <SectionHead num="03" title="Assessment" sub="Intake vs. targets — the mark on each bar is 100%." />
               {log.length === 0 ? (
                 <p style={{ fontSize: 13.5, color: C.faint, paddingBottom: 14 }}>The report populates once foods are logged above.</p>
@@ -3297,7 +3318,7 @@ export default function NutritionAssessment() {
             </section>
 
             {/* ---------- 04 Recommendations ---------- */}
-            <section className="na-panel" style={{ padding: "22px 22px 24px" }}>
+            <section className="na-panel">
               <a href={RECIPE_SITE_URL} target="_top" rel="noopener"
                 style={{ float: "right", fontSize: 13, fontWeight: 500, color: C.accent, textDecoration: "none", borderBottom: `1px solid ${C.accent}`, marginTop: 4 }}>
                 Open recipe book ↗
