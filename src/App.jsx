@@ -286,11 +286,26 @@ const GOOGLE_IDEAS = {
 };
 
 // Pick up to 4 unused search ideas, round-robin across nutrients for variety.
+// The base phrases are multiplied with natural search modifiers ("30 minute",
+// "one pan", …) so repeat visitors keep getting genuinely new queries instead
+// of hitting the end of a fixed list.
+const IDEA_MODIFIERS = ["quick", "30 minute", "one pan", "meal prep", "budget friendly", "air fryer", "slow cooker", "family friendly"];
+
+function ideaPool(k) {
+  const base = GOOGLE_IDEAS[k] || [];
+  const pool = [...base];
+  for (const m of IDEA_MODIFIERS) {
+    const w = m.split(" ")[0];
+    for (const b of base) if (!b.includes(w)) pool.push(`${m} ${b}`);
+  }
+  return pool;
+}
+
 function genSearchPage(keys, used) {
   // up to 6 unused ideas per page, round-robin across the nutrients in play
   const byK = {};
   for (const k of keys) {
-    const arr = (GOOGLE_IDEAS[k] || []).filter(q => !used.has(q));
+    const arr = ideaPool(k).filter(q => !used.has(q));
     if (arr.length) byK[k] = [...arr];
   }
   const ks = Object.keys(byK);
@@ -762,6 +777,7 @@ const css = `
 .na-serif { font-family: 'Fraunces', Georgia, serif; letter-spacing: -0.01em; }
 .na-mono { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
 .na-eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; color: ${C.faint}; }
+.na-subhead { font-family: 'Fraunces', Georgia, serif; font-size: 16px; font-weight: 700; color: ${C.ink}; letter-spacing: -0.01em; }
 .na-input, .na-select { font: inherit; font-size: 14px; padding: 9px 12px; border: 1px solid ${C.rule}; border-radius: 10px; background: #fff; color: ${C.ink}; width: 100%; }
 .na-input:focus, .na-select:focus, .na-btn:focus, .na-tab:focus, .na-acc:focus { outline: 2px solid ${C.accent}; outline-offset: 1px; }
 .na-btn { font: inherit; font-size: 13px; font-weight: 500; padding: 10px 18px; cursor: pointer; border: 1px solid ${C.ink}; background: ${C.ink}; color: ${C.panel}; border-radius: 999px; }
@@ -2298,8 +2314,23 @@ export default function NutritionAssessment() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
 
-  // Read the Citrus&Spice recipe book (same-origin IndexedDB) once.
-  useEffect(() => { readCitrusRecipes().then(setCitrusRecipes); }, []);
+  // Read the Citrus&Spice recipe book (same-origin IndexedDB) on load, and
+  // re-read whenever the tab regains focus — so recipes added on the recipe
+  // site show up here without a full page reload.
+  useEffect(() => {
+    const sig = (a) => a.map(r => `${r.id}:${r.title || ""}`).join("|");
+    const refresh = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      readCitrusRecipes().then(next => setCitrusRecipes(prev => sig(prev) === sig(next) ? prev : next));
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
 
   // Load the person list once.
   useEffect(() => {
@@ -2475,21 +2506,15 @@ export default function NutritionAssessment() {
     setRecPage(0);
   }, [ideaSig]); // eslint-disable-line
 
-  // True when every phrase for the nutrients in play has already been shown.
-  const ideasExhausted = useMemo(() => {
-    const used = new Set(ideaPages.flat().map(x => x.q));
-    return genSearchPage(ideaKeys, used).length === 0;
-  }, [ideaPages, ideaSig]); // eslint-disable-line
-
-  const atLastPage = recPage >= ideaPages.length - 1;
-
   const nextIdeas = () => {
     setRecPage(pg => {
       const next = pg + 1;
       if (next < ideaPages.length) return next;
       const used = new Set(ideaPages.flat().map(x => x.q));
-      const picks = genSearchPage(ideaKeys, used);
-      if (picks.length === 0) return pg; // no ideas left — stay put
+      let picks = genSearchPage(ideaKeys, used);
+      // Pool exhausted — start a fresh cycle so "More" never dead-ends.
+      if (picks.length === 0) picks = genSearchPage(ideaKeys, new Set());
+      if (picks.length === 0) return pg; // no ideas exist for these nutrients at all
       setIdeaPages(ps => [...ps, picks]);
       return next;
     });
@@ -2582,6 +2607,7 @@ export default function NutritionAssessment() {
 
   const handleBarcode = async (code) => {
     setShowScanner(false);
+    setSearchError(""); // clear any stale error from a previous failed lookup
     try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) {}
     const known = barcodes[code];
     if (known) {
@@ -2932,14 +2958,14 @@ export default function NutritionAssessment() {
                     </ul>
                   )}
                 </div>
-                {/* Row 2 — quantity and the primary action side by side */}
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
-                <div style={{ flex: "0 1 200px", minWidth: 140 }}>
+                {/* Row 2 — quantity and the primary action, locked to one line */}
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "nowrap" }}>
+                <div style={{ flex: "0 1 180px", minWidth: 104 }}>
                   {selected && selected.per100g ? (
                     <Field label="Amount" note={amountUnit !== "serving" && UNITS[amountUnit] && UNITS[amountUnit].approx ? "Volume units are approximate — density varies by food." : null}>
                       <div style={{ display: "flex", gap: 6 }}>
-                        <input className="na-input" type="number" min="0" step="any" value={amount} onChange={e => setAmount(e.target.value)} />
-                        <select className="na-select" style={{ width: 118 }} value={amountUnit} onChange={e => setAmountUnit(e.target.value)}>
+                        <input className="na-input" type="number" min="0" step="any" value={amount} onChange={e => setAmount(e.target.value)} style={{ minWidth: 0 }} />
+                        <select className="na-select" style={{ width: 96, flexShrink: 0, padding: "9px 6px" }} value={amountUnit} onChange={e => setAmountUnit(e.target.value)}>
                           {selected.servingG && <option value="serving">serving ({Math.round(selected.servingG)} g)</option>}
                           {Object.entries(UNITS).map(([k, u]) => <option key={k} value={k}>{u.label}</option>)}
                         </select>
@@ -2953,15 +2979,15 @@ export default function NutritionAssessment() {
                 </div>
                 {/* Primary action — beside the quantity so logging is one glance, one tap */}
                 <button className="na-btn" onClick={addFood} disabled={!selected}
-                  style={{ opacity: selected ? 1 : 0.45, flex: "1 1 170px", marginTop: 21,
-                    padding: "10px 18px", fontSize: 15, fontWeight: 600 }}>
+                  style={{ opacity: selected ? 1 : 0.45, flex: "1 1 auto", minWidth: 118, marginTop: 21,
+                    padding: "10px 14px", fontSize: 15, fontWeight: 600, whiteSpace: "nowrap" }}>
                   Add to log
                 </button>
                 </div>
 
                 {/* Row 3 — other ways to find a food, as quiet chips */}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                <button className="na-chipbtn" onClick={() => { setShowScanner(s => !s); setScanStatus(""); }}>
+                <button className="na-chipbtn" onClick={() => { setShowScanner(s => !s); setScanStatus(""); setSearchError(""); }}>
                   {!showScanner && (
                     <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
@@ -3157,20 +3183,20 @@ export default function NutritionAssessment() {
                 <p style={{ fontSize: 13.5, color: C.faint, paddingBottom: 14 }}>The report populates once foods are logged above.</p>
               ) : (
                 <>
-                  <div className="na-eyebrow" style={{ margin: "4px 0 2px" }}>Energy & macronutrients</div>
+                  <div className="na-subhead" style={{ margin: "4px 0 4px" }}>Energy & macronutrients</div>
                   <MacroSummary totals={totals} targets={targets} styleKey={macroStyle} customBands={customBands}
                     onStyle={(k) => { setMacroStyle(k); persistUi({ macroStyle: k }); }}
                     onCustomBands={(b) => { setCustomBands(b); persistUi({ customBands: b }); }} />
                   <Gauge label="Dietary fiber" value={totals.fiber} target={targets.fiber} unit="g" dp={1} />
 
-                  <div className="na-eyebrow" style={{ margin: "18px 0 2px" }}>Micronutrients</div>
+                  <div className="na-subhead" style={{ margin: "18px 0 4px" }}>Micronutrients</div>
                   <Gauge label="Calcium" value={totals.calcium} target={targets.calcium} unit="mg" />
                   <Gauge label="Iron" value={totals.iron} target={targets.iron} unit="mg" dp={1} />
                   <Gauge label="Potassium" value={totals.potassium} target={targets.potassium} unit="mg" />
                   <Gauge label="Vitamin C" value={totals.vitC} target={targets.vitC} unit="mg" />
                   <Gauge label="Vitamin D" value={totals.vitD} target={targets.vitD} unit="mcg" dp={1} />
 
-                  <div className="na-eyebrow" style={{ margin: "18px 0 2px" }}>Intake limits</div>
+                  <div className="na-subhead" style={{ margin: "18px 0 4px" }}>Intake limits</div>
                   <Gauge label="Sodium" value={totals.sodium} target={targets.sodiumLimit} unit="mg" isLimit />
 
                   {(() => {
@@ -3185,7 +3211,7 @@ export default function NutritionAssessment() {
                     if (found.length === 0) return null;
                     return (
                       <>
-                        <div className="na-eyebrow" style={{ margin: "18px 0 2px" }}>Bonus nutrients today</div>
+                        <div className="na-subhead" style={{ margin: "18px 0 4px" }}>Bonus nutrients today</div>
                         <div style={{ padding: "12px 14px", margin: "8px 0 4px", background: "#eef0e4", border: `1px solid ${C.rule}`, borderRadius: 10 }}>
                           <p style={{ margin: "0 0 8px", fontSize: 13.5, fontWeight: 600, color: C.ok }}>
                             ✦ Well done — today's foods also provide {found.length} beneficial compound{found.length > 1 ? "s" : ""} beyond the standard panel:
@@ -3205,19 +3231,15 @@ export default function NutritionAssessment() {
                     );
                   })()}
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "16px 0" }}>
-                    <span style={{ fontSize: 12.5, color: C.faint }}>Auto-saves to History.</span>
-                    {saveMsg && <span className="na-mono" style={{ fontSize: 12.5, color: C.ok }}>{saveMsg}</span>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 0 2px" }}>
+                    <span style={{ fontSize: 11.5, color: C.faint }}>Auto-saves to History.</span>
+                    {saveMsg && <span className="na-mono" style={{ fontSize: 11.5, color: C.ok }}>{saveMsg}</span>}
                   </div>
-
-                  <p style={{ fontSize: 12, color: C.faint, paddingBottom: 14, marginTop: 0, lineHeight: 1.55 }}>
-                    Custom items count only the nutrients entered.
-                  </p>
                 </>
               )}
 
               {/* ---------- Custom tracked nutrients ---------- */}
-              <div className="na-eyebrow" style={{ margin: "14px 0 2px" }}>Your custom nutrients</div>
+              <div className="na-subhead" style={{ margin: "16px 0 4px" }}>Customized tracking</div>
               {Object.keys(customNutrients).length === 0 && (
                 <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 10px" }}>
                   Track extras like omega-3, magnesium, or water.
@@ -3455,9 +3477,8 @@ export default function NutritionAssessment() {
                     </button>
                   ))}
                   <button className="na-btn na-btn-quiet" onClick={nextIdeas}
-                    disabled={atLastPage && ideasExhausted}
-                    style={{ opacity: atLastPage && ideasExhausted ? 0.45 : 1, padding: "7px 13px", fontSize: 13 }}>
-                    {atLastPage && ideasExhausted ? "No more ideas" : "More →"}
+                    style={{ padding: "7px 13px", fontSize: 13 }}>
+                    More →
                   </button>
                 </div>
               )}
