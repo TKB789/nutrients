@@ -786,8 +786,8 @@ const css = `
 .na-btn-quiet:hover { background: #ece4d4; }
 .na-panel { background: ${C.panel}; border: 1px solid ${C.rule}; border-radius: 14px; box-shadow: 0 1px 2px rgba(28,24,20,.06), 0 8px 24px rgba(28,24,20,.08); padding: 22px 22px 24px; }
 .na-main { max-width: 860px; margin: 0 auto; padding: 26px 20px 40px; display: grid; gap: 26px; }
-.na-chipbtn { font: inherit; font-size: 12.5px; font-weight: 500; padding: 8px 13px; cursor: pointer; border: 1px solid ${C.rule}; background: transparent; color: #4a4137; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.na-chipbtn:hover { background: #ece4d4; }
+.na-chipbtn { font: inherit; font-size: 13.5px; font-weight: 600; padding: 12px 14px; cursor: pointer; border: 1.5px solid #b6a88f; background: #fff; color: ${C.ink}; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; box-shadow: 0 1px 2px rgba(28,24,20,.08); }
+.na-chipbtn:hover { background: #ece4d4; border-color: #4a4137; }
 .na-hdr { background: ${C.paper}; border-bottom: 1px solid ${C.rule}; padding: 18px 20px 0; }
 .na-banner { max-width: 860px; margin: 0 auto; padding: 8px 20px; font-size: 11.5px; line-height: 1.5; color: #4a4137; }
 @media (max-width: 600px) {
@@ -2590,7 +2590,7 @@ export default function NutritionAssessment() {
       setBonusMsg(`✦ Good choice — beyond the standard panel, this food also provides ${b.extra.toLowerCase()} (${b.blurb}).`);
       setTimeout(() => setBonusMsg(""), 8000);
     }
-    setSelected(null); setQuery(""); setQty(1); setAmount(100); setAmountUnit("g"); setUsdaResults([]);
+    setSelected(null); setQuery(""); setQty(1); setAmount(100); setAmountUnit("g"); setUsdaResults([]); setScanStatus("");
   };
 
   const runUsdaSearch = async () => {
@@ -2977,16 +2977,18 @@ export default function NutritionAssessment() {
                     </Field>
                   )}
                 </div>
-                {/* Primary action — beside the quantity so logging is one glance, one tap */}
+                {/* Primary action — turns accent + "Confirmed" once a scan is verified */}
                 <button className="na-btn" onClick={addFood} disabled={!selected}
                   style={{ opacity: selected ? 1 : 0.45, flex: "1 1 auto", minWidth: 118, marginTop: 21,
-                    padding: "10px 14px", fontSize: 15, fontWeight: 600, whiteSpace: "nowrap" }}>
-                  Add to log
+                    padding: "10px 14px", fontSize: selected && scanStatus ? 14 : 15, fontWeight: 600, whiteSpace: "nowrap",
+                    background: selected && scanStatus ? C.accent : undefined,
+                    borderColor: selected && scanStatus ? C.accent : undefined }}>
+                  {selected && scanStatus ? "✓ Confirmed — Log to day" : "Add to log"}
                 </button>
                 </div>
 
-                {/* Row 3 — other ways to find a food, as quiet chips */}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                {/* Row 3 — other ways to find a food: two even buttons, then past items */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <button className="na-chipbtn" onClick={() => { setShowScanner(s => !s); setScanStatus(""); setSearchError(""); }}>
                   {!showScanner && (
                     <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2999,9 +3001,10 @@ export default function NutritionAssessment() {
                 <button className="na-chipbtn" onClick={() => setShowCustom(s => !s)}>
                   {showCustom ? "Cancel custom item" : "Custom item"}
                 </button>
-                <div style={{ flex: "0 1 150px", minWidth: 120 }}>
+                </div>
+                <div>
                   <select className="na-select" value="" aria-label="Past items"
-                    style={{ borderRadius: 999, padding: "8px 12px", fontSize: 12.5, fontWeight: 500, color: "#4a4137" }}
+                    style={{ borderRadius: 999, padding: "11px 16px", fontSize: 13.5, fontWeight: 600, color: C.ink, border: "1.5px solid #b6a88f", boxShadow: "0 1px 2px rgba(28,24,20,.08)" }}
                     onChange={e => {
                       const v = e.target.value;
                       if (!v) return;
@@ -3046,7 +3049,6 @@ export default function NutritionAssessment() {
                     )}
                   </select>
                 </div>
-              </div>
               </div>
 
               {showScanner && <BarcodeScanner onDetect={handleBarcode} onClose={() => setShowScanner(false)} />}
