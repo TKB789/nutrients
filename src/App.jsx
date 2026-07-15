@@ -3233,10 +3233,7 @@ export default function NutritionAssessment() {
                     );
                   })()}
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 0 2px" }}>
-                    <span style={{ fontSize: 11.5, color: C.faint }}>Auto-saves to History.</span>
-                    {saveMsg && <span className="na-mono" style={{ fontSize: 11.5, color: C.ok }}>{saveMsg}</span>}
-                  </div>
+                  {saveMsg && <p className="na-mono" style={{ margin: "6px 0 0", fontSize: 11.5, color: C.ok }}>{saveMsg}</p>}
                 </>
               )}
 
@@ -3259,11 +3256,11 @@ export default function NutritionAssessment() {
                       <button className="na-btn na-btn-quiet" style={{ padding: "7px 14px", fontSize: 12.5 }} onClick={() => setEditingCN(null)}>Cancel</button>
                     </div>
                   )}
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0 4px" }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "nowrap", padding: "8px 0 4px" }}>
                     <input className="na-input" type="number" min="0" step="any" defaultValue=""
-                      placeholder={`Amount (${cn.unit})`} style={{ width: 130, padding: "6px 10px", fontSize: 13 }}
+                      placeholder={`Amount (${cn.unit})`} style={{ flex: "1 1 80px", minWidth: 64, padding: "6px 8px", fontSize: 12.5 }}
                       id={`cnq-${cn.id}`} aria-label={`Amount of ${cn.name} to log`} />
-                    <button className="na-btn" style={{ padding: "7px 14px", fontSize: 12.5 }}
+                    <button className="na-btn" style={{ padding: "7px 11px", fontSize: 12, flexShrink: 0, whiteSpace: "nowrap" }}
                       onClick={() => {
                         const el = document.getElementById(`cnq-${cn.id}`);
                         quickLogCustom(cn, el && el.value);
@@ -3271,11 +3268,11 @@ export default function NutritionAssessment() {
                       }}>
                       Log amount
                     </button>
-                    <button className="na-btn na-btn-quiet" style={{ padding: "7px 14px", fontSize: 12.5 }}
+                    <button className="na-btn na-btn-quiet" style={{ padding: "7px 11px", fontSize: 12, flexShrink: 0 }}
                       onClick={() => { setEditingCN(cn.id); setCnDraft({ name: cn.name, unit: cn.unit, target: String(cn.target) }); }}>
                       Edit
                     </button>
-                    <button className="na-btn na-btn-quiet" style={{ padding: "7px 14px", fontSize: 12.5, color: C.high }}
+                    <button className="na-btn na-btn-quiet" style={{ padding: "7px 11px", fontSize: 12, color: C.high, flexShrink: 0, whiteSpace: "nowrap" }}
                       onClick={() => deleteCustomNutrient(cn.id)}>
                       Stop tracking
                     </button>
